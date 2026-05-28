@@ -1,16 +1,21 @@
 {
-  "name": "crendora-v1",
+  "name": "venniq-v1",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "env -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL next dev --webpack --disable-source-maps",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.93.0",
+    "@react-email/components": "^1.0.12",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.105.3",
     "next": "16.2.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "resend": "^6.12.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

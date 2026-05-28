@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/discover",          "schedule": "0 7 * * 1-5" },
+    { "path": "/api/alerts/followup",         "schedule": "0 8 * * *"   },
+    { "path": "/api/alerts/mark-no-response", "schedule": "0 9 * * *"   }
+  ]
+}
