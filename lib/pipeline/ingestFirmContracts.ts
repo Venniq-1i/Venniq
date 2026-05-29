@@ -25,9 +25,10 @@ export async function ingestFirmContracts(
   departments: Department[],
   lookbackDays = 60
 ): Promise<IngestResult> {
-  const enabledSources = (profile.contract_sources ?? []).filter(
-    s => s.enabled && !s.comingSoon
-  )
+  const contractSources = profile.contract_sources ?? []
+  const enabledSources = contractSources.length === 0
+    ? [{ source: 'contracts_finder' }, { source: 'find_a_tender' }]
+    : contractSources.filter(s => s.enabled && !s.comingSoon)
 
   if (enabledSources.length === 0) {
     console.log(`[Ingest:${firmId}] No enabled sources — skipping`)
