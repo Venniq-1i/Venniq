@@ -219,7 +219,7 @@ export default function ContractsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [fetching, setFetching] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [fetchResult, setFetchResult] = useState<{ rawFetched: number; filtered: number; ingested: number } | null>(null)
+  const [fetchResult, setFetchResult] = useState<{ rawFetched: number; filtered: number; ingested: number; error?: string } | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const router = useRouter()
   const supabase = createClient()
@@ -248,6 +248,11 @@ export default function ContractsPage() {
     setFetching(true); setFetchResult(null)
     const postRes = await fetch('/api/contracts', { method: 'POST' })
     const postData = await postRes.json()
+    if (!postRes.ok) {
+      setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: postData.error ?? 'Something went wrong' })
+      setFetching(false)
+      return
+    }
     setFetchResult({ rawFetched: postData.rawFetched ?? 0, filtered: postData.filtered ?? 0, ingested: postData.ingested ?? 0 })
     const res = await fetch('/api/contracts')
     const data = await res.json()
@@ -298,7 +303,8 @@ export default function ContractsPage() {
             ? { background: '#FFF5F5', color: '#991B1B', border: '0.5px solid #FCA5A5' }
             : { background: '#ECFDF5', color: '#065F46', border: '0.5px solid #6EE7B7' }),
         }}>
-          {fetchResult.rawFetched === 0 ? 'No contracts returned — the API may be temporarily unavailable.'
+          {fetchResult.error ? fetchResult.error
+        : fetchResult.rawFetched === 0 ? 'No contracts returned — the API may be temporarily unavailable.'
             : fetchResult.filtered === 0 ? <span>Returned <strong>{fetchResult.rawFetched}</strong> contracts, but <strong>none matched</strong> your profile.</span>
             : <span>Fetched <strong>{fetchResult.rawFetched}</strong> → AI kept <strong>{fetchResult.filtered}</strong> → <strong>{fetchResult.ingested}</strong> new{fetchResult.ingested !== fetchResult.filtered ? ` (${fetchResult.filtered - fetchResult.ingested} already in library)` : ''}.</span>}
         </div>

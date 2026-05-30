@@ -147,17 +147,20 @@ async function fetchFTSPage(
 
 async function fetchAllFTSReleases(
   updatedFrom: string,
-  stages: string
+  stages: string,
+  maxPages = 10
 ): Promise<OCDSRelease[]> {
   const all: OCDSRelease[] = []
   let cursor: string | undefined
+  let page = 0
 
   do {
     const { releases, nextCursor } = await fetchFTSPage(updatedFrom, stages, cursor)
     all.push(...releases)
     cursor = nextCursor
-    console.log(`[FTS:${stages}] fetched=${releases.length} total=${all.length} hasMore=${!!nextCursor}`)
-  } while (cursor)
+    page++
+    console.log(`[FTS:${stages}] page=${page} fetched=${releases.length} total=${all.length} hasMore=${!!nextCursor}`)
+  } while (cursor && page < maxPages)
 
   return all
 }
@@ -217,16 +220,17 @@ function releaseToContract(release: OCDSRelease): Partial<Contract> | null {
  */
 export async function fetchContractsFromFTS(
   minValue: number,
-  lookbackDays = 60
+  lookbackDays = 60,
+  maxPages = 10
 ): Promise<Partial<Contract>[]> {
   const updatedFrom = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString()
   const awardedFrom = new Date(Date.now() - AWARDED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
   // Pass 1: active tender notices
-  const tenderReleases = await fetchAllFTSReleases(updatedFrom, 'tender')
+  const tenderReleases = await fetchAllFTSReleases(updatedFrom, 'tender', maxPages)
 
   // Pass 2: award notices (separate, fixed lookback)
-  const awardReleases = await fetchAllFTSReleases(awardedFrom, 'award')
+  const awardReleases = await fetchAllFTSReleases(awardedFrom, 'award', maxPages)
 
   // Deduplicate by release id — active first, awarded appended
   const seen = new Set<string>()

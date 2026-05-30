@@ -49,7 +49,7 @@ export async function ingestFirmContracts(
       filtered += result.filtered
       allNewIds.push(...result.newIds)
     } else if (source.source === 'find_a_tender') {
-      const result = await ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI)
+      const result = await ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI, skipAI ? 3 : 10)
       rawFetched += result.rawFetched
       filtered += result.filtered
       allNewIds.push(...result.newIds)
@@ -204,11 +204,12 @@ async function ingestFindATender(
   profile: FirmProfile,
   departments: Department[],
   lookbackDays: number,
-  skipAI = false
+  skipAI = false,
+  maxPages = 10
 ): Promise<IngestResult> {
-  console.log(`[Ingest:${firmId}] Fetching from Find a Tender Service (date-window, no keywords)`)
+  console.log(`[Ingest:${firmId}] Fetching from Find a Tender Service (date-window, no keywords, maxPages=${maxPages})`)
 
-  const raw = await fetchContractsFromFTS(profile.min_contract_value, lookbackDays)
+  const raw = await fetchContractsFromFTS(profile.min_contract_value, lookbackDays, maxPages)
 
   console.log(`[Ingest:${firmId}] Raw from FTS: ${raw.length}`)
   if (raw.length === 0) return { rawFetched: 0, filtered: 0, inserted: 0, newIds: [] }
