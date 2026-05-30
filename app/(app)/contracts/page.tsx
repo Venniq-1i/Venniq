@@ -246,20 +246,40 @@ export default function ContractsPage() {
 
   async function fetchContracts() {
     setFetching(true); setFetchResult(null)
-    const postRes = await fetch('/api/contracts', { method: 'POST' })
-    const postData = await postRes.json()
-    if (!postRes.ok) {
-      setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: postData.error ?? 'Something went wrong' })
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000) // 55s client timeout
+
+      let postRes: Response
+      try {
+        postRes = await fetch('/api/contracts', { method: 'POST', signal: controller.signal })
+      } catch (err: any) {
+        clearTimeout(timeout)
+        if (err?.name === 'AbortError') {
+          setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Request timed out — please complete your profile setup in onboarding first, then try again.' })
+        } else {
+          setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Network error — please check your connection and try again.' })
+        }
+        setFetching(false)
+        return
+      }
+      clearTimeout(timeout)
+
+      const postData = await postRes.json()
+      if (!postRes.ok) {
+        setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: postData.error ?? 'Something went wrong — please try again.' })
+        setFetching(false)
+        return
+      }
+      setFetchResult({ rawFetched: postData.rawFetched ?? 0, filtered: postData.filtered ?? 0, ingested: postData.ingested ?? 0 })
+      const res = await fetch('/api/contracts')
+      const data = await res.json()
+      const fresh = data.contracts as Contract[]
+      setContracts(fresh)
+      setSelected(new Set(fresh.filter(c => c.status === 'new').map(c => c.id)))
+    } finally {
       setFetching(false)
-      return
     }
-    setFetchResult({ rawFetched: postData.rawFetched ?? 0, filtered: postData.filtered ?? 0, ingested: postData.ingested ?? 0 })
-    const res = await fetch('/api/contracts')
-    const data = await res.json()
-    const fresh = data.contracts as Contract[]
-    setContracts(fresh)
-    setSelected(new Set(fresh.filter(c => c.status === 'new').map(c => c.id)))
-    setFetching(false)
   }
 
   function toggleSelect(id: string) {
