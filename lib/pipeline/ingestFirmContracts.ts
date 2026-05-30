@@ -42,19 +42,21 @@ export async function ingestFirmContracts(
   let filtered = 0
   const allNewIds: string[] = []
 
-  for (const source of enabledSources) {
+  // Run all enabled sources in parallel
+  const sourcePromises = enabledSources.map(source => {
     if (source.source === 'contracts_finder') {
-      const result = await ingestContractsFinder(supabase, firmId, profile, departments, lookbackDays, skipAI)
-      rawFetched += result.rawFetched
-      filtered += result.filtered
-      allNewIds.push(...result.newIds)
+      return ingestContractsFinder(supabase, firmId, profile, departments, lookbackDays, skipAI)
     } else if (source.source === 'find_a_tender') {
-      const result = await ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI, skipAI ? 3 : 10)
-      rawFetched += result.rawFetched
-      filtered += result.filtered
-      allNewIds.push(...result.newIds)
+      return ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI, skipAI ? 3 : 10)
     }
-    // Future sources (delta, proactis) go here
+    return Promise.resolve({ rawFetched: 0, filtered: 0, inserted: 0, newIds: [] })
+  })
+
+  const results = await Promise.all(sourcePromises)
+  for (const result of results) {
+    rawFetched += result.rawFetched
+    filtered += result.filtered
+    allNewIds.push(...result.newIds)
   }
 
   return { rawFetched, filtered, inserted: allNewIds.length, newIds: allNewIds }

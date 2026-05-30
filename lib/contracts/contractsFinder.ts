@@ -123,29 +123,7 @@ export async function fetchContractsFromFinder(
 
   const groups = keywordGroups.length > 0 ? keywordGroups : [[]]
 
-  // ── Pass 1: Active / live opportunities ───────────────────────────────────
-  for (const group of groups) {
-    const body: Record<string, unknown> = {
-      publishedFrom,
-      size: RESULTS_PER_GROUP,
-      from: 0,
-      status: 'published',           // CF API: active/live notices only
-      ...(group.length > 0 && { keyword: group.join(' ') }),
-      ...(minValue > 0 && { valueFrom: minValue * 0.5 }),
-    }
-
-    const items = await cfFetch(body)
-    // Client-side safety filter: exclude anything that ended up awarded
-    const active = items.filter(i => !isAwarded(i))
-    let newCount = 0
-    for (const item of active) {
-      if (!activeItems.has(item.id)) { activeItems.set(item.id, item); newCount++ }
-    }
-    console.log(`[CF:active] group="${group.slice(0, 3).join(',')}" got=${active.length} new=${newCount} total=${activeItems.size}`)
-  }
-
-  // ── Pass 2: Recently awarded contracts (Mode A intelligence) ──────────────
-  // Single broad call — no keyword filter so we cast a wide net for awards.
+  // ── Pass 1 + 2: Run all keyword groups AND awards fetch in parallel ────────
   const awardedBody: Record<string, unknown> = {
     publishedFrom: awardedFrom,
     size: RESULTS_PER_GROUP,
@@ -154,7 +132,28 @@ export async function fetchContractsFromFinder(
     ...(minValue > 0 && { valueFrom: minValue * 0.5 }),
   }
 
-  const awardedPage = await cfFetch(awardedBody)
+  const [groupResults, awardedPage] = await Promise.all([
+    Promise.all(groups.map(group => {
+      const body: Record<string, unknown> = {
+        publishedFrom,
+        size: RESULTS_PER_GROUP,
+        from: 0,
+        status: 'published',
+        ...(group.length > 0 && { keyword: group.join(' ') }),
+        ...(minValue > 0 && { valueFrom: minValue * 0.5 }),
+      }
+      return cfFetch(body).then(items => items.filter(i => !isAwarded(i)))
+    })),
+    cfFetch(awardedBody),
+  ])
+
+  for (const items of groupResults) {
+    for (const item of items) {
+      if (!activeItems.has(item.id)) activeItems.set(item.id, item)
+    }
+  }
+  console.log(`[CF:active] total=${activeItems.size} from ${groups.length} groups (parallel)`)
+
   const confirmedAwarded = awardedPage.filter(isAwarded)
   for (const item of confirmedAwarded) {
     if (!activeItems.has(item.id)) awardedItems.set(item.id, item)

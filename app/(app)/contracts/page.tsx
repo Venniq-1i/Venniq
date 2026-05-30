@@ -256,7 +256,7 @@ export default function ContractsPage() {
       } catch (err: any) {
         clearTimeout(timeout)
         if (err?.name === 'AbortError') {
-          setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Request timed out — please complete your profile setup in onboarding first, then try again.' })
+          setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Request timed out — the server took too long. Please try again in a moment.' })
         } else {
           setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Network error — please check your connection and try again.' })
         }
