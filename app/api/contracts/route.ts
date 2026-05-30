@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import type { FirmProfile, Department } from '@/types'
 import { ingestFirmContracts } from '@/lib/pipeline/ingestFirmContracts'
 
+export const maxDuration = 300 // 5 minutes — requires Vercel Pro
+
 export async function POST(_req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,7 +29,7 @@ export async function POST(_req: NextRequest) {
 
   const departments = (deptData ?? []) as Department[]
 
-  const result = await ingestFirmContracts(supabase as any, firm.id, profile, departments)
+  const result = await ingestFirmContracts(supabase as any, firm.id, profile, departments, 14)
 
   return NextResponse.json({
     rawFetched: result.rawFetched,
