@@ -29,7 +29,7 @@ export async function POST(_req: NextRequest) {
 
   const departments = (deptData ?? []) as Department[]
 
-  const result = await ingestFirmContracts(supabase as any, firm.id, profile, departments, 14)
+  const result = await ingestFirmContracts(supabase as any, firm.id, profile, departments, 14, true)
 
   return NextResponse.json({
     rawFetched: result.rawFetched,

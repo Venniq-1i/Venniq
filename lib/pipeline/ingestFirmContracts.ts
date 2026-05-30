@@ -17,13 +17,16 @@ export interface IngestResult {
  * Only inserts contracts that don't already exist — never overwrites existing status.
  *
  * lookbackDays: how far back to search. Use 2 for the daily cron, 60 for a manual catch-up fetch.
+ * skipAI: skip AI relevance filtering — use for manual fetches on Vercel Hobby (60s limit).
+ *         Contracts are stored as-is; the nightly cron will AI-score them.
  */
 export async function ingestFirmContracts(
   supabase: SupabaseClient,
   firmId: string,
   profile: FirmProfile,
   departments: Department[],
-  lookbackDays = 60
+  lookbackDays = 60,
+  skipAI = false
 ): Promise<IngestResult> {
   const contractSources = profile.contract_sources ?? []
   const enabledSources = contractSources.length === 0
@@ -41,12 +44,12 @@ export async function ingestFirmContracts(
 
   for (const source of enabledSources) {
     if (source.source === 'contracts_finder') {
-      const result = await ingestContractsFinder(supabase, firmId, profile, departments, lookbackDays)
+      const result = await ingestContractsFinder(supabase, firmId, profile, departments, lookbackDays, skipAI)
       rawFetched += result.rawFetched
       filtered += result.filtered
       allNewIds.push(...result.newIds)
     } else if (source.source === 'find_a_tender') {
-      const result = await ingestFindATender(supabase, firmId, profile, departments, lookbackDays)
+      const result = await ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI)
       rawFetched += result.rawFetched
       filtered += result.filtered
       allNewIds.push(...result.newIds)
@@ -108,7 +111,8 @@ async function ingestContractsFinder(
   firmId: string,
   profile: FirmProfile,
   departments: Department[],
-  lookbackDays: number
+  lookbackDays: number,
+  skipAI = false
 ): Promise<IngestResult> {
   const keywordGroups = buildKeywordGroups(profile, departments)
   console.log(`[Ingest:${firmId}] Searching with ${keywordGroups.length} keyword group(s)`)
@@ -122,32 +126,36 @@ async function ingestContractsFinder(
   console.log(`[Ingest:${firmId}] Raw from CF: ${raw.length}`)
   if (raw.length === 0) return { rawFetched: 0, filtered: 0, inserted: 0, newIds: [] }
 
-  // AI relevance filter — only run if profile has enough context
+  // AI relevance filter — skip on manual fetches (Vercel Hobby 60s limit)
   let filteredContracts = raw
   let aiResults: Awaited<ReturnType<typeof aiFilterContracts>> = []
 
-  const hasProfileContext =
-    departments.length > 0 ||
-    profile.services_description ||
-    profile.company_overview ||
-    (profile.service_lines ?? []).length > 0
+  if (!skipAI) {
+    const hasProfileContext =
+      departments.length > 0 ||
+      profile.services_description ||
+      profile.company_overview ||
+      (profile.service_lines ?? []).length > 0
 
-  if (hasProfileContext) {
-    aiResults = await aiFilterContracts(
-      raw.map(c => ({
-        id: c.external_id!,
-        title: c.title!,
-        description: c.description ?? '',
-        value: c.value ?? 0,
-        issuer: c.issuer!,
-      })),
-      profile,
-      departments
-    )
+    if (hasProfileContext) {
+      aiResults = await aiFilterContracts(
+        raw.map(c => ({
+          id: c.external_id!,
+          title: c.title!,
+          description: c.description ?? '',
+          value: c.value ?? 0,
+          issuer: c.issuer!,
+        })),
+        profile,
+        departments
+      )
 
-    const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
-    filteredContracts = raw.filter(c => relevantIds.has(c.external_id!))
-    console.log(`[Ingest:${firmId}] After AI filter: ${filteredContracts.length} relevant`)
+      const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
+      filteredContracts = raw.filter(c => relevantIds.has(c.external_id!))
+      console.log(`[Ingest:${firmId}] After AI filter: ${filteredContracts.length} relevant`)
+    }
+  } else {
+    console.log(`[Ingest:${firmId}] Skipping AI filter (skipAI=true) — storing all ${raw.length} contracts`)
   }
 
   if (filteredContracts.length === 0) return { rawFetched: raw.length, filtered: 0, inserted: 0, newIds: [] }
@@ -195,7 +203,8 @@ async function ingestFindATender(
   firmId: string,
   profile: FirmProfile,
   departments: Department[],
-  lookbackDays: number
+  lookbackDays: number,
+  skipAI = false
 ): Promise<IngestResult> {
   console.log(`[Ingest:${firmId}] Fetching from Find a Tender Service (date-window, no keywords)`)
 
@@ -207,28 +216,32 @@ async function ingestFindATender(
   let filteredContracts = raw
   let aiResults: Awaited<ReturnType<typeof aiFilterContracts>> = []
 
-  const hasProfileContext =
-    departments.length > 0 ||
-    profile.services_description ||
-    profile.company_overview ||
-    (profile.service_lines ?? []).length > 0
+  if (!skipAI) {
+    const hasProfileContext =
+      departments.length > 0 ||
+      profile.services_description ||
+      profile.company_overview ||
+      (profile.service_lines ?? []).length > 0
 
-  if (hasProfileContext) {
-    aiResults = await aiFilterContracts(
-      raw.map(c => ({
-        id: c.external_id!,
-        title: c.title!,
-        description: c.description ?? '',
-        value: c.value ?? 0,
-        issuer: c.issuer!,
-      })),
-      profile,
-      departments
-    )
+    if (hasProfileContext) {
+      aiResults = await aiFilterContracts(
+        raw.map(c => ({
+          id: c.external_id!,
+          title: c.title!,
+          description: c.description ?? '',
+          value: c.value ?? 0,
+          issuer: c.issuer!,
+        })),
+        profile,
+        departments
+      )
 
-    const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
-    filteredContracts = raw.filter(c => relevantIds.has(c.external_id!))
-    console.log(`[Ingest:${firmId}] After AI filter: ${filteredContracts.length} relevant`)
+      const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
+      filteredContracts = raw.filter(c => relevantIds.has(c.external_id!))
+      console.log(`[Ingest:${firmId}] After AI filter: ${filteredContracts.length} relevant`)
+    }
+  } else {
+    console.log(`[Ingest:${firmId}] Skipping AI filter (skipAI=true) — storing all ${raw.length} contracts`)
   }
 
   if (filteredContracts.length === 0) return { rawFetched: raw.length, filtered: 0, inserted: 0, newIds: [] }
