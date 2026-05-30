@@ -176,25 +176,24 @@ async function ingestContractsFinder(
   if (newContracts.length === 0) return { rawFetched: raw.length, filtered: filteredContracts.length, inserted: 0, newIds: [] }
 
   const aiByExternalId = new Map(aiResults.map(r => [r.contractId, r]))
-  const newIds: string[] = []
 
-  for (const contract of newContracts) {
+  const rows = newContracts.map(contract => {
     const ai = aiByExternalId.get(contract.external_id!)
-    const { data } = await supabase
-      .from('contracts')
-      .insert({
-        ...contract,
-        firm_id: firmId,
-        ai_rationale: ai?.rationale ?? null,
-        ai_departments: ai?.relevantDepartments ?? [],
-        ai_confidence: ai?.confidence ?? null,
-      })
-      .select('id')
-      .single()
+    return {
+      ...contract,
+      firm_id: firmId,
+      ai_rationale: ai?.rationale ?? null,
+      ai_departments: ai?.relevantDepartments ?? [],
+      ai_confidence: ai?.confidence ?? null,
+    }
+  })
 
-    if (data) newIds.push(data.id)
-  }
+  const { data: inserted } = await supabase
+    .from('contracts')
+    .insert(rows)
+    .select('id')
 
+  const newIds = (inserted ?? []).map((r: { id: string }) => r.id)
   return { rawFetched: raw.length, filtered: filteredContracts.length, inserted: newIds.length, newIds }
 }
 
@@ -261,24 +260,23 @@ async function ingestFindATender(
   if (newContracts.length === 0) return { rawFetched: raw.length, filtered: filteredContracts.length, inserted: 0, newIds: [] }
 
   const aiByExternalId = new Map(aiResults.map(r => [r.contractId, r]))
-  const newIds: string[] = []
 
-  for (const contract of newContracts) {
+  const rows = newContracts.map(contract => {
     const ai = aiByExternalId.get(contract.external_id!)
-    const { data } = await supabase
-      .from('contracts')
-      .insert({
-        ...contract,
-        firm_id: firmId,
-        ai_rationale: ai?.rationale ?? null,
-        ai_departments: ai?.relevantDepartments ?? [],
-        ai_confidence: ai?.confidence ?? null,
-      })
-      .select('id')
-      .single()
+    return {
+      ...contract,
+      firm_id: firmId,
+      ai_rationale: ai?.rationale ?? null,
+      ai_departments: ai?.relevantDepartments ?? [],
+      ai_confidence: ai?.confidence ?? null,
+    }
+  })
 
-    if (data) newIds.push(data.id)
-  }
+  const { data: inserted } = await supabase
+    .from('contracts')
+    .insert(rows)
+    .select('id')
 
+  const newIds = (inserted ?? []).map((r: { id: string }) => r.id)
   return { rawFetched: raw.length, filtered: filteredContracts.length, inserted: newIds.length, newIds }
 }
