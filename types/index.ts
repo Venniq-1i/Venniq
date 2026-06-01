@@ -72,7 +72,8 @@ export interface ContractSource {
 export interface DepartmentLead {
   name: string
   email: string
-  capabilities: string[]  // which delivery capabilities this lead handles; empty = all
+  capabilities: string[]    // which delivery capabilities this lead handles; empty = all
+  markets_sectors: string[] // which markets/sectors this lead handles; empty = all
   is_primary: boolean
 }
 

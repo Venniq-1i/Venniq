@@ -6,10 +6,18 @@ import { createClient } from '@/lib/supabase/client'
 import OnboardingShell from '@/components/onboarding/OnboardingShell'
 import type { ServiceLine, Department, DepartmentLead } from '@/types'
 
+const ALL_MARKETS = [
+  'Transport', 'Central Government', 'Local Government', 'Healthcare',
+  'Energy & Utilities', 'Defence', 'Housing & Real Estate', 'Financial Services',
+  'Education', 'Environment', 'Justice & Emergency Services',
+  'Digital / Technology', 'Construction', 'Infrastructure',
+]
+
 interface LeadEntry {
   name: string
   email: string
   capabilities: string[]
+  markets_sectors: string[]
   is_primary: boolean
 }
 
@@ -21,7 +29,39 @@ interface DeptLeads {
 }
 
 function emptyLead(isPrimary = false): LeadEntry {
-  return { name: '', email: '', capabilities: [], is_primary: isPrimary }
+  return { name: '', email: '', capabilities: [], markets_sectors: [], is_primary: isPrimary }
+}
+
+function MarketsSectorsToggle({
+  selected,
+  onChange,
+}: {
+  selected: string[]
+  onChange: (v: string[]) => void
+}) {
+  return (
+    <div>
+      <p className="text-xs text-slate-500 mb-1.5">
+        Markets &amp; Sectors <span className="text-slate-400">(leave blank = all markets)</span>
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {ALL_MARKETS.map(market => (
+          <button
+            key={market}
+            type="button"
+            onClick={() => onChange(selected.includes(market) ? selected.filter(m => m !== market) : [...selected, market])}
+            className={`px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
+              selected.includes(market)
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'
+            }`}
+          >
+            {market}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function CapabilityToggle({
@@ -93,12 +133,13 @@ export default function LeadsStep() {
             name: l.name,
             email: l.email,
             capabilities: l.capabilities ?? [],
+            markets_sectors: l.markets_sectors ?? [],
             is_primary: l.is_primary ?? false,
           }))
           // Ensure at least one primary marker
           if (!leads.some(l => l.is_primary)) leads[0].is_primary = true
         } else if (match?.lead_name) {
-          leads = [{ name: match.lead_name, email: match.lead_email, capabilities: [], is_primary: true }]
+          leads = [{ name: match.lead_name, email: match.lead_email, capabilities: [], markets_sectors: [], is_primary: true }]
         } else {
           leads = [emptyLead(true)]
         }
@@ -113,8 +154,8 @@ export default function LeadsStep() {
           deptName: d.name,
           availableCapabilities: [],
           leads: d.leads?.length
-            ? d.leads.map((l: DepartmentLead) => ({ ...l, capabilities: l.capabilities ?? [] }))
-            : [{ name: d.lead_name, email: d.lead_email, capabilities: [], is_primary: true }],
+            ? d.leads.map((l: DepartmentLead) => ({ ...l, capabilities: l.capabilities ?? [], markets_sectors: l.markets_sectors ?? [] }))
+            : [{ name: d.lead_name, email: d.lead_email, capabilities: [], markets_sectors: [], is_primary: true }],
         })))
       } else {
         setDeptLeads(items)
@@ -315,6 +356,11 @@ export default function LeadsStep() {
                       onChange={v => updateLead(di, li, 'capabilities', v)}
                     />
                   )}
+
+                  <MarketsSectorsToggle
+                    selected={lead.markets_sectors}
+                    onChange={v => updateLead(di, li, 'markets_sectors', v)}
+                  />
                 </div>
               ))}
             </div>

@@ -8,6 +8,7 @@ interface DeptRow {
   name: string
   lead_name: string
   lead_email: string
+  direct_notify_employees: boolean
 }
 
 interface Draft {
@@ -25,6 +26,30 @@ const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
 }
 
+function Toggle({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      style={{
+        flexShrink: 0, width: '36px', height: '20px', borderRadius: '100px',
+        background: on ? '#1A6FFF' : '#D8E4FF',
+        border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+        position: 'relative', transition: 'background 0.2s',
+        opacity: disabled ? 0.5 : 1,
+      }}
+      aria-label={on ? 'Disable direct notifications' : 'Enable direct notifications'}
+    >
+      <span style={{
+        position: 'absolute', top: '2px', left: on ? '18px' : '2px',
+        width: '16px', height: '16px', borderRadius: '50%',
+        background: '#ffffff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+      }} />
+    </button>
+  )
+}
+
 export default function DepartmentsSettingsPage() {
   const supabase = createClient()
   const [loading, setLoading]       = useState(true)
@@ -35,6 +60,7 @@ export default function DepartmentsSettingsPage() {
   const [savingId, setSavingId]     = useState<string | null>(null)
   const [successId, setSuccessId]   = useState<string | null>(null)
   const [errors, setErrors]         = useState<Record<string, string>>({})
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -45,7 +71,7 @@ export default function DepartmentsSettingsPage() {
       setFirmId(firm.id)
       const { data: depts } = await supabase
         .from('departments')
-        .select('id, name, lead_name, lead_email')
+        .select('id, name, lead_name, lead_email, direct_notify_employees')
         .eq('firm_id', firm.id)
         .order('name')
       if (depts) {
@@ -67,7 +93,6 @@ export default function DepartmentsSettingsPage() {
   }
 
   function cancelEdit(id: string) {
-    // revert draft to committed value
     const committed = departments.find(d => d.id === id)
     if (committed) {
       setDrafts(prev => ({ ...prev, [id]: { lead_name: committed.lead_name, lead_email: committed.lead_email } }))
@@ -91,12 +116,32 @@ export default function DepartmentsSettingsPage() {
       setSavingId(null)
       return
     }
-    // commit to displayed data
     setDepts(prev => prev.map(d => d.id === id ? { ...d, lead_name: draft.lead_name, lead_email: draft.lead_email } : d))
     setSavingId(null)
     setEditingId(null)
     setSuccessId(id)
     setTimeout(() => setSuccessId(s => s === id ? null : s), 2000)
+  }
+
+  async function toggleDirectNotify(id: string) {
+    if (!firmId || togglingId) return
+    const dept = departments.find(d => d.id === id)
+    if (!dept) return
+    const next = !dept.direct_notify_employees
+    // Optimistic update
+    setDepts(prev => prev.map(d => d.id === id ? { ...d, direct_notify_employees: next } : d))
+    setTogglingId(id)
+    const { error: err } = await supabase
+      .from('departments')
+      .update({ direct_notify_employees: next })
+      .eq('id', id)
+      .eq('firm_id', firmId)
+    if (err) {
+      // Rollback
+      setDepts(prev => prev.map(d => d.id === id ? { ...d, direct_notify_employees: !next } : d))
+      setErrors(prev => ({ ...prev, [id]: err.message }))
+    }
+    setTogglingId(null)
   }
 
   if (loading) return (
@@ -113,8 +158,13 @@ export default function DepartmentsSettingsPage() {
           Department <em style={{ color: '#1A6FFF', fontStyle: 'italic' }}>notifications</em>
         </h1>
         <p style={{ fontSize: '14px', color: '#536180', marginTop: '8px', fontWeight: 300 }}>
-          Set the designated contract lead for each department. Alerts for matched contracts are sent to this person.
+          Set the designated contract lead for each department. Manage direct employee notification preferences below.
         </p>
+      </div>
+
+      {/* Direct employee notification explainer */}
+      <div style={{ background: '#EFF4FF', border: '0.5px solid #C2D4F8', borderRadius: '10px', padding: '14px 16px', marginBottom: '24px', fontSize: '13px', color: '#0D1E4F', fontWeight: 300, lineHeight: 1.6 }}>
+        <strong style={{ fontWeight: 500 }}>Direct employee notification</strong> — when enabled for a department, a personalised email is also sent to the matched employee(s) when an alert fires. The department lead remains the decision-maker.
       </div>
 
       {departments.length === 0 ? (
@@ -124,8 +174,8 @@ export default function DepartmentsSettingsPage() {
       ) : (
         <div style={{ background: '#ffffff', border: '0.5px solid #D8E4FF', borderRadius: '12px', overflow: 'hidden' }}>
           {/* Table header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '0', borderBottom: '0.5px solid #EEF2FF', padding: '10px 20px', background: '#F5F7FF' }}>
-            {['Department', 'Contract Lead', 'Email', ''].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 120px auto', gap: 0, borderBottom: '0.5px solid #EEF2FF', padding: '10px 20px', background: '#F5F7FF' }}>
+            {['Department', 'Contract Lead', 'Email', 'Direct notify', ''].map((h, i) => (
               <span key={i} style={{ fontSize: '11px', fontWeight: 600, color: '#8BA4CC', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</span>
             ))}
           </div>
@@ -147,7 +197,7 @@ export default function DepartmentsSettingsPage() {
                   transition: 'background 0.15s',
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '0', padding: '14px 20px', alignItems: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 120px auto', gap: 0, padding: '14px 20px', alignItems: 'center' }}>
                   {/* Department name */}
                   <span style={{ fontSize: '13px', fontWeight: 500, color: '#0D1E4F' }}>{dept.name}</span>
 
@@ -187,10 +237,22 @@ export default function DepartmentsSettingsPage() {
                     </span>
                   )}
 
+                  {/* Direct notify toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Toggle
+                      on={dept.direct_notify_employees}
+                      onToggle={() => toggleDirectNotify(dept.id)}
+                      disabled={togglingId === dept.id}
+                    />
+                    <span style={{ fontSize: '11px', color: dept.direct_notify_employees ? '#4ACEA6' : '#C2D4F8', fontWeight: 500 }}>
+                      {dept.direct_notify_employees ? 'On' : 'Off'}
+                    </span>
+                  </div>
+
                   {/* Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
                     {isSuccess && !isEditing && (
-                      <span style={{ fontSize: '12px', color: '#4ACEA6', fontWeight: 500 }}>✓ Saved</span>
+                      <span style={{ fontSize: '12px', color: '#4ACEA6', fontWeight: 500 }}>✓</span>
                     )}
                     {isEditing ? (
                       <>

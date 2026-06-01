@@ -6,7 +6,7 @@ interface Props {
   variant?: 'dark' | 'light'
 }
 
-const heights = { sm: 18, md: 22, lg: 28 }
+const heights = { sm: 18, md: 30, lg: 38 }
 
 export default function CrendoraLogo({ size = 'md', variant = 'dark' }: Props) {
   const h = heights[size]
