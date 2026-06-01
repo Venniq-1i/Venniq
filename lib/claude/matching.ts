@@ -2,6 +2,39 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { Contract, Employee, FirmProfile, MatchingResult } from '@/types'
 
 const MODEL = 'claude-sonnet-4-6'
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+
+/**
+ * Pre-filter for Mode A: checks whether a contract plausibly requires
+ * consultancy, advisory, management, oversight, or professional services.
+ * Uses Haiku for cost/speed — this is a binary gate, not a deep analysis.
+ */
+export async function checkModeAConsultancyFit(contract: Contract): Promise<boolean> {
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const prompt = `You are evaluating whether a UK government procurement contract requires consultancy, advisory, management, oversight, assurance, or professional services as part of its delivery — either from the prime contractor or alongside them.
+
+Contract title: ${contract.title}
+Category: ${contract.category}
+Description: ${(contract.description ?? '').slice(0, 500)}
+
+Reply ONLY with valid JSON (no markdown): { "eligible": true, "reason": "one sentence" } or { "eligible": false, "reason": "one sentence" }`
+
+  try {
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 100,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    const text = response.content.find(c => c.type === 'text')?.text ?? ''
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) return true // default to eligible on parse failure
+    const parsed = JSON.parse(match[0]) as { eligible: boolean; reason: string }
+    console.log(`[ModeA:consultancyCheck] eligible=${parsed.eligible} — ${parsed.reason}`)
+    return parsed.eligible
+  } catch {
+    return true // default to eligible on error
+  }
+}
 
 function formatEmployer(e: { company: string; from_year: number; to_year: number | null }) {
   return `${e.company} (${e.from_year}–${e.to_year === null ? 'present' : e.to_year})`
@@ -35,12 +68,21 @@ Also attempt fuzzy matching for common name variations (e.g. "Highways England" 
 Context for the alert recipient: This contract has been awarded. Staff who previously worked at the winning organisation may have existing relationships that could support future phases, renewals, framework call-offs, or related subcontracting opportunities.`
     : ''
 
+  const includeWinnerAnalysis = (intentMode === 'A' || intentMode === 'AB') &&
+    isAwarded && contract.awarded_supplier &&
+    (profile.mode_a_triggers.includeWinnerAnalysis ?? true)
+
+  const advisoryAnalysisInstruction = includeWinnerAnalysis
+    ? `\n\nADVISORY OPPORTUNITY ANALYSIS REQUIRED:
+Populate the advisory_opportunity_analysis field with 2–3 sentences explaining what consultancy or professional services ${contract.awarded_supplier} is likely to need to deliver this contract. Be specific to the contract type and scale (e.g. programme oversight, cost management, environmental advisory, stakeholder engagement). Do not speculate beyond realistic service needs. This will be shown to BD staff in the alert email under the heading "Advisory Opportunity Analysis".`
+    : ''
+
   const modeInstructions = {
     A: `MODE A — SALES OPPORTUNITY${winnerContext}
 This contract signals that the winner or serious bidder will need external consultancy, advisory, or specialist support services.
 Your firm is NOT bidding directly on this contract.
 FOCUS: Identify which employees have a prior relationship with the ISSUING ORGANISATION${isAwarded && contract.awarded_supplier ? ` or the WINNING ORGANISATION (${contract.awarded_supplier})` : ' or likely WINNING ORGANISATION'}.
-The alert email will frame this as a sales opportunity — not a bid.`,
+The alert email will frame this as a sales opportunity — not a bid.${advisoryAnalysisInstruction}`,
     B: `MODE B — DIRECT BID${winnerContext}
 This contract is something the firm should consider bidding on directly.
 FOCUS: Identify which departments can deliver the contract, and assemble the strongest possible bid team.
@@ -49,7 +91,7 @@ Surface employees with prior relationships at the issuing organisation${isAwarde
 This contract triggers BOTH modes simultaneously.
 Generate results covering BOTH:
 1. Sales/consultancy outreach (Mode A) — who at the issuing org or winning org do we know?
-2. Direct bid opportunity (Mode B) — which departments should bid, and who builds the team?`,
+2. Direct bid opportunity (Mode B) — which departments should bid, and who builds the team?${advisoryAnalysisInstruction}`,
   }
 
   const systemPrompt = `You are Venniq's AI matching engine — an Opportunity Intelligence Platform used by large professional services firms.
@@ -114,6 +156,10 @@ Use record_matches to record your findings.`
         firm_relevance_note: {
           type: 'string' as const,
           description: 'How well this contract fits the firm\'s pursuit criteria',
+        },
+        advisory_opportunity_analysis: {
+          type: 'string' as const,
+          description: 'Mode A awarded contracts only: 2–3 sentences on what consultancy services the winning company is likely to need. Omit if not applicable.',
         },
         matched_departments: {
           type: 'array' as const,

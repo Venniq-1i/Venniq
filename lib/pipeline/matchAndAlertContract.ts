@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Contract, Department, Employee, FirmProfile, MatchedDepartment } from '@/types'
 import { classifyIntent } from '@/lib/relevanceProfile'
-import { matchContractToEmployees } from '@/lib/claude/matching'
+import { matchContractToEmployees, checkModeAConsultancyFit } from '@/lib/claude/matching'
 import { sendModeAAlert, sendModeBAlert, sendEmployeeDirectAlert } from '@/lib/email/resend'
 
 const FOLLOW_UP_DAYS = parseInt(process.env.ALERT_FOLLOW_UP_DAYS ?? '3', 10)
@@ -45,10 +45,37 @@ export async function matchAndAlertContract(
 
   const contract = contractRow as Contract
 
-  const intentMode = classifyIntent(contract, profile)
+  let intentMode = classifyIntent(contract, profile)
   if (!intentMode) {
     await supabase.from('contracts').update({ status: 'no_match' }).eq('id', contractId)
     console.log(`[Match:${firmId}] Contract ${contractId} — no_match (below thresholds)`)
+    return 'no_match'
+  }
+
+  // Mode A: competitor exclusion on awarded_supplier
+  if ((intentMode === 'A' || intentMode === 'AB') && contract.awarded_supplier) {
+    const exclusions = profile.mode_a_triggers.competitorExclusions ?? []
+    if (exclusions.length > 0) {
+      const supplier = contract.awarded_supplier.toLowerCase()
+      const isExcluded = exclusions.some(n => n.trim() && supplier.includes(n.trim().toLowerCase()))
+      if (isExcluded) {
+        console.log(`[Match:${firmId}] Mode A suppressed — awarded_supplier "${contract.awarded_supplier}" is on competitor exclusion list`)
+        intentMode = intentMode === 'AB' ? 'B' : null
+      }
+    }
+  }
+
+  // Mode A: consultancy-fit pre-filter
+  if (intentMode === 'A' || intentMode === 'AB') {
+    const eligible = await checkModeAConsultancyFit(contract)
+    if (!eligible) {
+      console.log(`[Match:${firmId}] Mode A suppressed — contract did not pass consultancy-fit check`)
+      intentMode = intentMode === 'AB' ? 'B' : null
+    }
+  }
+
+  if (!intentMode) {
+    await supabase.from('contracts').update({ status: 'no_match' }).eq('id', contractId)
     return 'no_match'
   }
 
@@ -78,7 +105,7 @@ export async function matchAndAlertContract(
     await supabase.from('contracts').update({ status: 'matched' }).eq('id', contractId)
 
     if (run) {
-      await sendAlerts(supabase, run.id, contract, result.matched_departments ?? [], departments, employees, intentMode)
+      await sendAlerts(supabase, run.id, contract, result.matched_departments ?? [], departments, employees, intentMode, result.advisory_opportunity_analysis)
     }
 
     return 'matched'
@@ -96,7 +123,8 @@ async function sendAlerts(
   matchedDepartments: MatchedDepartment[],
   departments: Department[],
   employees: Employee[],
-  intentMode: 'A' | 'B' | 'AB'
+  intentMode: 'A' | 'B' | 'AB',
+  advisoryAnalysis?: string
 ) {
   const modes = intentMode === 'AB' ? (['A', 'B'] as const) : ([intentMode] as const)
 
@@ -124,7 +152,7 @@ async function sendAlerts(
         if (mode === 'B') {
           await sendModeBAlert({ contract, dept, matchedDept, responseToken })
         } else {
-          await sendModeAAlert({ contract, dept, matchedDept, responseToken })
+          await sendModeAAlert({ contract, dept, matchedDept, responseToken, advisoryAnalysis })
         }
       } catch (err) {
         console.error(`[Alerts] Email to ${dept.lead_email} failed:`, err)

@@ -8,9 +8,10 @@ interface Props {
   leadName: string
   matchedDept: MatchedDepartment
   responseToken: string
+  advisoryAnalysis?: string
 }
 
-export default function AlertModeAEmail({ contract, deptName, leadName, matchedDept, responseToken }: Props) {
+export default function AlertModeAEmail({ contract, deptName, leadName, matchedDept, responseToken, advisoryAnalysis }: Props) {
   const days = contract.deadline
     ? Math.ceil((new Date(contract.deadline).getTime() - Date.now()) / 86400000)
     : null
@@ -54,6 +55,13 @@ export default function AlertModeAEmail({ contract, deptName, leadName, matchedD
       <Text style={{ margin: '0 0 16px', fontSize: 14, color: '#475569' }}>
         Venniq has identified a sales opportunity for your <strong>{deptName}</strong> department. The winner or serious bidder on this contract will likely need consultancy or specialist support — and your team has prior relationships there.
       </Text>
+
+      {advisoryAnalysis && (
+        <Section style={{ background: '#fef3c7', borderLeft: '4px solid #d97706', padding: '12px 16px', borderRadius: 4, marginBottom: 16 }}>
+          <Text style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#92400e' }}>Advisory Opportunity Analysis</Text>
+          <Text style={{ margin: '4px 0 0', fontSize: 13, color: '#78350f', lineHeight: '1.5' }}>{advisoryAnalysis}</Text>
+        </Section>
+      )}
 
       <Section style={{ background: '#fffbeb', borderLeft: '4px solid #d97706', padding: '12px 16px', borderRadius: 4, marginBottom: 20 }}>
         <Text style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#92400e' }}>Why this is a sales opportunity</Text>

@@ -4,6 +4,20 @@ import { fetchContractsFromFinder } from '@/lib/contracts/contractsFinder'
 import { fetchContractsFromFTS } from '@/lib/contracts/findATender'
 import { aiFilterContracts } from '@/lib/contracts/aiRelevanceFilter'
 
+// FRAMEWORK FILTER: controlled by firm's include_framework_contracts preference in Settings → Contract Preferences
+function isFrameworkContract(c: Partial<import('@/types').Contract>): boolean {
+  const notice = (c.notice_type ?? '').toLowerCase()
+  const text = `${c.title ?? ''} ${c.description ?? ''}`.toLowerCase()
+  return (
+    notice.includes('framework') ||
+    notice.includes('dynamic purchasing') ||
+    notice.includes('dps') ||
+    text.includes('framework agreement') ||
+    text.includes('dynamic purchasing system') ||
+    text.includes('call-off framework')
+  )
+}
+
 export type IngestProgressEvent =
   | { stage: 'fetching'; source: string }
   | { stage: 'ai_filtering'; dept: string; batch: number; total: number }
@@ -136,8 +150,16 @@ async function ingestContractsFinder(
   console.log(`[Ingest:${firmId}] Raw from CF: ${raw.length}`)
   if (raw.length === 0) return { rawFetched: 0, filtered: 0, inserted: 0, newIds: [] }
 
+  // FRAMEWORK FILTER: controlled by firm's include_framework_contracts preference in Settings → Contract Preferences
+  const afterFrameworkFilter = profile.include_framework_contracts
+    ? raw
+    : raw.filter(c => !isFrameworkContract(c))
+  if (afterFrameworkFilter.length < raw.length) {
+    console.log(`[Ingest:${firmId}] Framework filter dropped ${raw.length - afterFrameworkFilter.length} contracts`)
+  }
+
   // AI relevance filter — skip on manual fetches (Vercel Hobby 60s limit)
-  let filteredContracts = raw
+  let filteredContracts = afterFrameworkFilter
   let aiResults: Awaited<ReturnType<typeof aiFilterContracts>> = []
 
   if (!skipAI) {
@@ -149,7 +171,7 @@ async function ingestContractsFinder(
 
     if (hasProfileContext) {
       aiResults = await aiFilterContracts(
-        raw.map(c => ({
+        afterFrameworkFilter.map(c => ({
           id: c.external_id!,
           title: c.title!,
           description: c.description ?? '',
@@ -162,11 +184,11 @@ async function ingestContractsFinder(
       )
 
       const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
-      filteredContracts = raw.filter(c => relevantIds.has(c.external_id!))
+      filteredContracts = afterFrameworkFilter.filter(c => relevantIds.has(c.external_id!))
       console.log(`[Ingest:${firmId}] After AI filter: ${filteredContracts.length} relevant`)
     }
   } else {
-    console.log(`[Ingest:${firmId}] Skipping AI filter (skipAI=true) — storing all ${raw.length} contracts`)
+    console.log(`[Ingest:${firmId}] Skipping AI filter (skipAI=true) — storing all ${afterFrameworkFilter.length} contracts`)
   }
 
   if (filteredContracts.length === 0) return { rawFetched: raw.length, filtered: 0, inserted: 0, newIds: [] }
@@ -228,7 +250,15 @@ async function ingestFindATender(
   console.log(`[Ingest:${firmId}] Raw from FTS: ${raw.length}`)
   if (raw.length === 0) return { rawFetched: 0, filtered: 0, inserted: 0, newIds: [] }
 
-  let filteredContracts = raw
+  // FRAMEWORK FILTER: controlled by firm's include_framework_contracts preference in Settings → Contract Preferences
+  const afterFrameworkFilter = profile.include_framework_contracts
+    ? raw
+    : raw.filter(c => !isFrameworkContract(c))
+  if (afterFrameworkFilter.length < raw.length) {
+    console.log(`[Ingest:${firmId}] Framework filter dropped ${raw.length - afterFrameworkFilter.length} FTS contracts`)
+  }
+
+  let filteredContracts = afterFrameworkFilter
   let aiResults: Awaited<ReturnType<typeof aiFilterContracts>> = []
 
   if (!skipAI) {
@@ -240,7 +270,7 @@ async function ingestFindATender(
 
     if (hasProfileContext) {
       aiResults = await aiFilterContracts(
-        raw.map(c => ({
+        afterFrameworkFilter.map(c => ({
           id: c.external_id!,
           title: c.title!,
           description: c.description ?? '',
@@ -253,11 +283,11 @@ async function ingestFindATender(
       )
 
       const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
-      filteredContracts = raw.filter(c => relevantIds.has(c.external_id!))
+      filteredContracts = afterFrameworkFilter.filter(c => relevantIds.has(c.external_id!))
       console.log(`[Ingest:${firmId}] After AI filter: ${filteredContracts.length} relevant`)
     }
   } else {
-    console.log(`[Ingest:${firmId}] Skipping AI filter (skipAI=true) — storing all ${raw.length} contracts`)
+    console.log(`[Ingest:${firmId}] Skipping AI filter (skipAI=true) — storing all ${afterFrameworkFilter.length} contracts`)
   }
 
   if (filteredContracts.length === 0) return { rawFetched: raw.length, filtered: 0, inserted: 0, newIds: [] }

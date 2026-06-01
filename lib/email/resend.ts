@@ -48,8 +48,9 @@ export async function sendModeAAlert(params: {
   dept: Department
   matchedDept: MatchedDepartment
   responseToken: string
+  advisoryAnalysis?: string
 }): Promise<void> {
-  const { contract, dept, matchedDept, responseToken } = params
+  const { contract, dept, matchedDept, responseToken, advisoryAnalysis } = params
   const html = await render(
     React.createElement(AlertModeAEmail, {
       contract,
@@ -57,6 +58,7 @@ export async function sendModeAAlert(params: {
       leadName: dept.lead_name,
       matchedDept,
       responseToken,
+      advisoryAnalysis,
     })
   )
   await getResend().emails.send({

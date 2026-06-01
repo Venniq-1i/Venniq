@@ -79,6 +79,7 @@ export default function ContractTypesStep() {
 
     const modeATriggers: ModeATriggers = {
       enabled: modeAEnabled, minValue: modeAMin, contractTypes: modeATypes, awardedOnly: modeAAwardedOnly,
+      competitorExclusions: [], includeWinnerAnalysis: true,
     }
     const modeBTriggers: ModeBTriggers = {
       enabled: modeBEnabled, minValue: modeBMin, contractTypes: modeBTypes,

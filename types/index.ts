@@ -48,6 +48,8 @@ export interface ModeATriggers {
   minValue: number
   contractTypes: string[]
   awardedOnly: boolean
+  competitorExclusions: string[]
+  includeWinnerAnalysis: boolean
 }
 
 export interface ModeBTriggers {
@@ -156,6 +158,7 @@ export interface MatchingResult {
   contract_id: string
   firm_relevance_note: string
   matched_departments: MatchedDepartment[]
+  advisory_opportunity_analysis?: string
 }
 
 export interface MatchedDepartment {

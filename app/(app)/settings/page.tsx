@@ -72,6 +72,9 @@ export default function SettingsPage() {
   const [modeAMin, setModeAMin]                   = useState(1_000_000)
   const [modeATypes, setModeATypes]               = useState<string[]>([])
   const [modeAAwardedOnly, setModeAAwardedOnly]   = useState(false)
+  const [modeACompetitorExclusions, setModeACompetitorExclusions] = useState<string[]>([])
+  const [modeACompetitorDraft, setModeACompetitorDraft]           = useState('')
+  const [includeWinnerAnalysis, setIncludeWinnerAnalysis]         = useState(true)
   const [modeBEnabled, setModeBEnabled]           = useState(true)
   const [modeBMin, setModeBMin]                   = useState(500_000)
   const [modeBTypes, setModeBTypes]               = useState<string[]>([])
@@ -120,6 +123,8 @@ export default function SettingsPage() {
           setModeAMin(p.mode_a_triggers.minValue ?? 1_000_000)
           setModeATypes(p.mode_a_triggers.contractTypes ?? [])
           setModeAAwardedOnly(p.mode_a_triggers.awardedOnly ?? false)
+          setModeACompetitorExclusions(p.mode_a_triggers.competitorExclusions ?? [])
+          setIncludeWinnerAnalysis(p.mode_a_triggers.includeWinnerAnalysis ?? true)
         }
         if (p.mode_b_triggers) {
           setModeBEnabled(p.mode_b_triggers.enabled ?? true)
@@ -169,7 +174,7 @@ export default function SettingsPage() {
   }
 
   function buildModeTriggers() {
-    const modeATriggers: ModeATriggers = { enabled: modeAEnabled, minValue: modeAMin, contractTypes: modeATypes, awardedOnly: modeAAwardedOnly }
+    const modeATriggers: ModeATriggers = { enabled: modeAEnabled, minValue: modeAMin, contractTypes: modeATypes, awardedOnly: modeAAwardedOnly, competitorExclusions: modeACompetitorExclusions, includeWinnerAnalysis }
     const modeBTriggers: ModeBTriggers = { enabled: modeBEnabled, minValue: modeBMin, contractTypes: modeBTypes }
     return { modeATriggers, modeBTriggers }
   }
@@ -512,6 +517,42 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Competitor exclusions */}
+              <div>
+                <label style={fieldLabel}>Exclude contracts awarded to these companies</label>
+                <div style={{ background: '#ffffff', border: '0.5px solid #D8E4FF', borderRadius: '6px', padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: '6px', minHeight: '44px' }}>
+                  {modeACompetitorExclusions.map(name => (
+                    <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500, background: '#FFF5F5', color: '#FF5C5C', border: '0.5px solid #FCA5A5', borderRadius: '100px', padding: '2px 9px' }}>
+                      {name}
+                      <button type="button" onClick={() => setModeACompetitorExclusions(prev => prev.filter(n => n !== name))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FF5C5C', fontSize: '14px', lineHeight: 1, padding: 0 }}>×</button>
+                    </span>
+                  ))}
+                  <input
+                    value={modeACompetitorDraft}
+                    onChange={e => setModeACompetitorDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); const v = modeACompetitorDraft.trim(); if (v && !modeACompetitorExclusions.includes(v)) setModeACompetitorExclusions(prev => [...prev, v]); setModeACompetitorDraft('') } }}
+                    onBlur={() => { const v = modeACompetitorDraft.trim(); if (v && !modeACompetitorExclusions.includes(v)) setModeACompetitorExclusions(prev => [...prev, v]); setModeACompetitorDraft('') }}
+                    style={{ flex: 1, minWidth: '160px', background: 'none', border: 'none', outline: 'none', fontSize: '14px', color: '#0D1E4F', fontWeight: 300 }}
+                    placeholder={modeACompetitorExclusions.length === 0 ? 'e.g. Mott MacDonald, Jacobs — press Enter' : ''}
+                  />
+                </div>
+                <p style={{ fontSize: '12px', color: '#8BA4CC', marginTop: '4px', fontWeight: 300 }}>Contracts awarded to these companies will not trigger an alert — useful for excluding direct competitors you would not approach.</p>
+              </div>
+
+              {/* Winner analysis toggle */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+                <div>
+                  <p style={{ fontSize: '13px', fontWeight: 500, color: '#0D1E4F', margin: '0 0 2px' }}>Include winning company analysis in alerts</p>
+                  <p style={{ fontSize: '12px', color: '#8BA4CC', margin: 0, fontWeight: 300 }}>AI-generated reasoning on what advisory services the winning company is likely to need.</p>
+                </div>
+                <button type="button" onClick={() => setIncludeWinnerAnalysis(v => !v)}
+                  style={{ flexShrink: 0, marginTop: '2px', width: '36px', height: '20px', borderRadius: '100px', background: includeWinnerAnalysis ? '#1A6FFF' : '#D8E4FF', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+                  aria-label="Toggle winner analysis"
+                >
+                  <span style={{ position: 'absolute', top: '2px', left: includeWinnerAnalysis ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+                </button>
+              </div>
             </div>
           )}
         </div>
