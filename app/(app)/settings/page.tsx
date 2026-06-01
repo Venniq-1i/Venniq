@@ -495,11 +495,16 @@ export default function SettingsPage() {
                   onChange={e => setModeAMin(Number(e.target.value))}
                   style={{ width: '100%', accentColor: '#1A6FFF', cursor: 'pointer' }} />
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={modeAAwardedOnly} onChange={e => setModeAAwardedOnly(e.target.checked)}
-                  style={{ width: '14px', height: '14px', accentColor: '#1A6FFF', cursor: 'pointer' }} />
-                <span style={{ fontSize: '13px', color: '#536180', fontWeight: 300 }}>Awarded contracts only <span style={{ color: '#8BA4CC' }}>(skip expression-of-interest stage)</span></span>
-              </label>
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={modeAAwardedOnly} onChange={e => setModeAAwardedOnly(e.target.checked)}
+                    style={{ width: '14px', height: '14px', accentColor: '#1A6FFF', cursor: 'pointer' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: '#0D1E4F' }}>Restrict to awarded contracts only</span>
+                </label>
+                <p style={{ fontSize: '12px', color: '#8BA4CC', margin: '4px 0 0 22px', fontWeight: 300, lineHeight: 1.5 }}>
+                  By default, Mode A alerts fire on both <strong style={{ color: '#536180' }}>live tenders</strong> (where bidders will need your advisory support) and <strong style={{ color: '#536180' }}>awarded contracts</strong> (where the winner may need your help). Enable this to restrict Mode A to awarded contracts only — useful if you only want to approach companies after they have won.
+                </p>
+              </div>
               {deptNames.length > 0 && (
                 <div>
                   <label style={{ ...fieldLabel, marginBottom: '6px' }}>Which departments trigger Mode A? <span style={{ color: '#8BA4CC', fontWeight: 300 }}>(blank = all)</span></label>
