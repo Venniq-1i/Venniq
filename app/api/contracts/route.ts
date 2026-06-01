@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { FirmProfile, Department } from '@/types'
 import { ingestFirmContracts } from '@/lib/pipeline/ingestFirmContracts'
 
-export const maxDuration = 300 // 5 minutes — requires Vercel Pro
+export const maxDuration = 300
 
 export async function POST(_req: NextRequest) {
   const supabase = await createClient()
@@ -29,12 +29,39 @@ export async function POST(_req: NextRequest) {
 
   const departments = (deptData ?? []) as Department[]
 
-  const result = await ingestFirmContracts(supabase as any, firm.id, profile, departments, 14, true)
+  const encoder = new TextEncoder()
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
+  const writer = writable.getWriter()
 
-  return NextResponse.json({
-    rawFetched: result.rawFetched,
-    filtered: result.filtered,
-    ingested: result.inserted,
+  const send = (event: object) => {
+    try { writer.write(encoder.encode(JSON.stringify(event) + '\n')) } catch {}
+  }
+
+  ;(async () => {
+    try {
+      const result = await ingestFirmContracts(
+        supabase as any,
+        firm.id,
+        profile,
+        departments,
+        14,
+        false,
+        send
+      )
+      send({ stage: 'done', rawFetched: result.rawFetched, filtered: result.filtered, ingested: result.inserted })
+    } catch (err: any) {
+      send({ stage: 'error', error: err?.message ?? 'Unknown error' })
+    } finally {
+      writer.close()
+    }
+  })()
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'application/x-ndjson',
+      'Cache-Control': 'no-cache',
+      'X-Accel-Buffering': 'no',
+    },
   })
 }
 

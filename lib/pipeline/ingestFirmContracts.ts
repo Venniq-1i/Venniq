@@ -4,6 +4,11 @@ import { fetchContractsFromFinder } from '@/lib/contracts/contractsFinder'
 import { fetchContractsFromFTS } from '@/lib/contracts/findATender'
 import { aiFilterContracts } from '@/lib/contracts/aiRelevanceFilter'
 
+export type IngestProgressEvent =
+  | { stage: 'fetching'; source: string }
+  | { stage: 'ai_filtering'; dept: string; batch: number; total: number }
+  | { stage: 'saving'; count: number }
+
 export interface IngestResult {
   rawFetched: number
   filtered: number
@@ -26,7 +31,8 @@ export async function ingestFirmContracts(
   profile: FirmProfile,
   departments: Department[],
   lookbackDays = 60,
-  skipAI = false
+  skipAI = false,
+  onProgress?: (event: IngestProgressEvent) => void
 ): Promise<IngestResult> {
   const contractSources = profile.contract_sources ?? []
   const enabledSources = contractSources.length === 0
@@ -45,9 +51,9 @@ export async function ingestFirmContracts(
   // Run all enabled sources in parallel
   const sourcePromises = enabledSources.map(source => {
     if (source.source === 'contracts_finder') {
-      return ingestContractsFinder(supabase, firmId, profile, departments, lookbackDays, skipAI)
+      return ingestContractsFinder(supabase, firmId, profile, departments, lookbackDays, skipAI, onProgress)
     } else if (source.source === 'find_a_tender') {
-      return ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI, skipAI ? 3 : 10)
+      return ingestFindATender(supabase, firmId, profile, departments, lookbackDays, skipAI, skipAI ? 3 : 10, onProgress)
     }
     return Promise.resolve({ rawFetched: 0, filtered: 0, inserted: 0, newIds: [] })
   })
@@ -114,8 +120,10 @@ async function ingestContractsFinder(
   profile: FirmProfile,
   departments: Department[],
   lookbackDays: number,
-  skipAI = false
+  skipAI = false,
+  onProgress?: (event: IngestProgressEvent) => void
 ): Promise<IngestResult> {
+  onProgress?.({ stage: 'fetching', source: 'contracts_finder' })
   const keywordGroups = buildKeywordGroups(profile, departments)
   console.log(`[Ingest:${firmId}] Searching with ${keywordGroups.length} keyword group(s)`)
 
@@ -149,7 +157,8 @@ async function ingestContractsFinder(
           issuer: c.issuer!,
         })),
         profile,
-        departments
+        departments,
+        p => onProgress?.({ stage: 'ai_filtering', ...p })
       )
 
       const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
@@ -161,6 +170,8 @@ async function ingestContractsFinder(
   }
 
   if (filteredContracts.length === 0) return { rawFetched: raw.length, filtered: 0, inserted: 0, newIds: [] }
+
+  onProgress?.({ stage: 'saving', count: filteredContracts.length })
 
   // Determine which external_ids already exist for this firm so we never
   // overwrite a contract that's already been matched or is in processing.
@@ -206,8 +217,10 @@ async function ingestFindATender(
   departments: Department[],
   lookbackDays: number,
   skipAI = false,
-  maxPages = 10
+  maxPages = 10,
+  onProgress?: (event: IngestProgressEvent) => void
 ): Promise<IngestResult> {
+  onProgress?.({ stage: 'fetching', source: 'find_a_tender' })
   console.log(`[Ingest:${firmId}] Fetching from Find a Tender Service (date-window, no keywords, maxPages=${maxPages})`)
 
   const raw = await fetchContractsFromFTS(profile.min_contract_value, lookbackDays, maxPages)
@@ -235,7 +248,8 @@ async function ingestFindATender(
           issuer: c.issuer!,
         })),
         profile,
-        departments
+        departments,
+        p => onProgress?.({ stage: 'ai_filtering', ...p })
       )
 
       const relevantIds = new Set(aiResults.filter(r => r.relevant).map(r => r.contractId))
@@ -247,6 +261,8 @@ async function ingestFindATender(
   }
 
   if (filteredContracts.length === 0) return { rawFetched: raw.length, filtered: 0, inserted: 0, newIds: [] }
+
+  onProgress?.({ stage: 'saving', count: filteredContracts.length })
 
   const externalIds = filteredContracts.map(c => c.external_id!)
   const { data: existing } = await supabase

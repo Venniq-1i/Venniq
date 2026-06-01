@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { FirmProfile, Department, ServiceLine } from '@/types'
+import type { FirmProfile, Department, ServiceLine, ContractSource, ModeATriggers, ModeBTriggers } from '@/types'
 
 const ALL_MARKETS = [
   'Transport', 'Central Government', 'Local Government', 'Healthcare',
@@ -19,6 +19,13 @@ interface DeptDraft {
   id: string; name: string; what_we_do: string
   specific_services: string; contract_types_won: string; keywords_synonyms: string
 }
+
+const DEFAULT_SOURCES: ContractSource[] = [
+  { source: 'contracts_finder', label: 'Contracts Finder', enabled: true, requiresCredentials: false },
+  { source: 'find_a_tender',    label: 'Find a Tender',    enabled: true, requiresCredentials: false },
+  { source: 'delta_esourcing',  label: 'Delta eSourcing',  enabled: false, requiresCredentials: true, comingSoon: true },
+  { source: 'proactis',         label: 'Proactis',         enabled: false, requiresCredentials: true, comingSoon: true },
+]
 
 const eyebrow: React.CSSProperties = {
   display: 'block', fontSize: '10px', fontWeight: 500,
@@ -40,6 +47,10 @@ const card: React.CSSProperties = {
   background: '#ffffff', border: '0.5px solid #D8E4FF', borderRadius: '12px', overflow: 'hidden',
 }
 
+function fmtValue(v: number) {
+  return v >= 1_000_000 ? `£${(v / 1_000_000).toFixed(1)}m` : `£${(v / 1000).toFixed(0)}k`
+}
+
 export default function SettingsPage() {
   const supabase = createClient()
   const [companyOverview, setCompanyOverview]     = useState('')
@@ -55,6 +66,21 @@ export default function SettingsPage() {
   const [departments, setDepartments]             = useState<DeptDraft[]>([])
   const [expandedDept, setExpandedDept]           = useState<string>('')
   const [loading, setLoading]                     = useState(true)
+  const [contractSources, setContractSources]     = useState<ContractSource[]>([])
+  // Contract Preferences
+  const [modeAEnabled, setModeAEnabled]           = useState(true)
+  const [modeAMin, setModeAMin]                   = useState(1_000_000)
+  const [modeATypes, setModeATypes]               = useState<string[]>([])
+  const [modeAAwardedOnly, setModeAAwardedOnly]   = useState(false)
+  const [modeBEnabled, setModeBEnabled]           = useState(true)
+  const [modeBMin, setModeBMin]                   = useState(500_000)
+  const [modeBTypes, setModeBTypes]               = useState<string[]>([])
+  const [includeFramework, setIncludeFramework]   = useState(false)
+  const [deptNames, setDeptNames]                 = useState<string[]>([])
+  const [prefsSaving, setPrefsSaving]             = useState(false)
+  const [prefsSaved, setPrefsSaved]               = useState(false)
+  const [prefsError, setPrefsError]               = useState('')
+  // Main profile save
   const [saving, setSaving]                       = useState(false)
   const [saved, setSaved]                         = useState(false)
   const [error, setError]                         = useState('')
@@ -79,6 +105,31 @@ export default function SettingsPage() {
         const lines: ServiceLineDraft[] = (p.service_lines ?? []).map(sl => ({ ...sl, _id: newLineId() }))
         setServiceLines(lines.length > 0 ? lines : [{ _id: newLineId(), name: '', service_line: '', delivery_capabilities: [], description: '', typical_clients: '', contract_keywords: '' }])
         if (lines.length > 0) setExpandedLine(lines[0]._id)
+
+        // Merge saved sources with defaults so new sources always appear
+        const saved = p.contract_sources ?? []
+        const merged = DEFAULT_SOURCES.map(def => {
+          const existing = saved.find(s => s.source === def.source)
+          return existing ? { ...def, ...existing } : def
+        })
+        setContractSources(merged)
+
+        // Contract Preferences
+        if (p.mode_a_triggers) {
+          setModeAEnabled(p.mode_a_triggers.enabled ?? true)
+          setModeAMin(p.mode_a_triggers.minValue ?? 1_000_000)
+          setModeATypes(p.mode_a_triggers.contractTypes ?? [])
+          setModeAAwardedOnly(p.mode_a_triggers.awardedOnly ?? false)
+        }
+        if (p.mode_b_triggers) {
+          setModeBEnabled(p.mode_b_triggers.enabled ?? true)
+          setModeBMin(p.mode_b_triggers.minValue ?? 500_000)
+          setModeBTypes(p.mode_b_triggers.contractTypes ?? [])
+        }
+        setIncludeFramework(p.include_framework_contracts ?? false)
+        setDeptNames(
+          ((p.service_lines ?? []) as ServiceLine[]).map(sl => sl.name).filter(Boolean)
+        )
       }
       if (deptData) {
         const depts = (deptData as Department[]).map(d => ({ id: d.id, name: d.name, what_we_do: d.what_we_do || d.capabilities || '', specific_services: d.specific_services || '', contract_types_won: d.contract_types_won || '', keywords_synonyms: d.keywords_synonyms || '' }))
@@ -117,6 +168,28 @@ export default function SettingsPage() {
     setDepartments(prev => prev.map(d => d.id === id ? { ...d, [field]: value } : d))
   }
 
+  function buildModeTriggers() {
+    const modeATriggers: ModeATriggers = { enabled: modeAEnabled, minValue: modeAMin, contractTypes: modeATypes, awardedOnly: modeAAwardedOnly }
+    const modeBTriggers: ModeBTriggers = { enabled: modeBEnabled, minValue: modeBMin, contractTypes: modeBTypes }
+    return { modeATriggers, modeBTriggers }
+  }
+
+  async function handlePrefsSave() {
+    setPrefsSaving(true); setPrefsSaved(false); setPrefsError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setPrefsError('Not authenticated.'); setPrefsSaving(false); return }
+    const { data: firm } = await supabase.from('firms').select('id').eq('owner_id', user.id).single()
+    if (!firm) { setPrefsError('Firm not found.'); setPrefsSaving(false); return }
+    const { modeATriggers, modeBTriggers } = buildModeTriggers()
+    const { error: err } = await supabase.from('firm_profiles').upsert(
+      { firm_id: firm.id, mode_a_triggers: modeATriggers, mode_b_triggers: modeBTriggers, include_framework_contracts: includeFramework },
+      { onConflict: 'firm_id' }
+    )
+    if (err) { setPrefsError(err.message); setPrefsSaving(false); return }
+    setPrefsSaving(false); setPrefsSaved(true)
+    setTimeout(() => setPrefsSaved(false), 6000)
+  }
+
   async function handleSave() {
     setSaving(true); setSaved(false); setError('')
     const { data: { user } } = await supabase.auth.getUser()
@@ -124,7 +197,8 @@ export default function SettingsPage() {
     const { data: firm } = await supabase.from('firms').select('id').eq('owner_id', user.id).single()
     if (!firm) { setError('Firm not found.'); setSaving(false); return }
     const linesToSave: ServiceLine[] = serviceLines.map(({ _id: _, ...sl }) => sl)
-    const { error: profileErr } = await supabase.from('firm_profiles').upsert({ firm_id: firm.id, company_overview: companyOverview, core_markets: coreMarkets, geographical_focus: geographicalFocus, service_lines: linesToSave, competitor_names: competitorNames, exclude_keywords: excludeKeywords, services_description: companyOverview }, { onConflict: 'firm_id' })
+    const { modeATriggers, modeBTriggers } = buildModeTriggers()
+    const { error: profileErr } = await supabase.from('firm_profiles').upsert({ firm_id: firm.id, company_overview: companyOverview, core_markets: coreMarkets, geographical_focus: geographicalFocus, service_lines: linesToSave, competitor_names: competitorNames, exclude_keywords: excludeKeywords, services_description: companyOverview, contract_sources: contractSources, mode_a_triggers: modeATriggers, mode_b_triggers: modeBTriggers, include_framework_contracts: includeFramework }, { onConflict: 'firm_id' })
     if (profileErr) { setError(profileErr.message); setSaving(false); return }
     for (const dept of departments) {
       const { error: deptErr } = await supabase.from('departments').update({ what_we_do: dept.what_we_do, specific_services: dept.specific_services, contract_types_won: dept.contract_types_won, keywords_synonyms: dept.keywords_synonyms, capabilities: dept.what_we_do }).eq('id', dept.id).eq('firm_id', firm.id)
@@ -309,6 +383,221 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      {/* Data Sources */}
+      <section style={{ marginBottom: '40px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 500, color: '#0D1E4F', borderBottom: '0.5px solid #EEF2FF', paddingBottom: '12px', marginBottom: '8px' }}>Data Sources</h2>
+        <p style={{ fontSize: '13px', color: '#536180', marginBottom: '20px', fontWeight: 300 }}>Choose which procurement portals Venniq fetches contracts from. Credentials for paid sources will be required when those go live.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {contractSources.map(src => {
+            const isFree = !src.requiresCredentials
+            const isComingSoon = !!src.comingSoon
+            return (
+              <div key={src.source} style={{ ...card, padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    disabled={isComingSoon}
+                    onClick={() => {
+                      if (isComingSoon) return
+                      setContractSources(prev => prev.map(s => s.source === src.source ? { ...s, enabled: !s.enabled } : s))
+                    }}
+                    style={{
+                      marginTop: '2px', flexShrink: 0,
+                      width: '36px', height: '20px', borderRadius: '100px',
+                      background: src.enabled && !isComingSoon ? '#1A6FFF' : '#D8E4FF',
+                      border: 'none', cursor: isComingSoon ? 'default' : 'pointer',
+                      position: 'relative', transition: 'background 0.2s',
+                      opacity: isComingSoon ? 0.5 : 1,
+                    }}
+                    aria-label={`${src.enabled ? 'Disable' : 'Enable'} ${src.label}`}
+                  >
+                    <span style={{
+                      position: 'absolute', top: '2px',
+                      left: src.enabled && !isComingSoon ? '18px' : '2px',
+                      width: '16px', height: '16px', borderRadius: '50%',
+                      background: '#ffffff', transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    }} />
+                  </button>
+
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: '#0D1E4F' }}>{src.label}</span>
+                      {isComingSoon && (
+                        <span style={{ fontSize: '10px', fontWeight: 500, padding: '2px 8px', borderRadius: '100px', background: '#F5F7FF', color: '#8BA4CC', border: '0.5px solid #D8E4FF' }}>Coming soon</span>
+                      )}
+                      {!isComingSoon && src.enabled && (
+                        <span style={{ fontSize: '10px', fontWeight: 500, padding: '2px 8px', borderRadius: '100px', background: '#ECFDF5', color: '#4ACEA6' }}>Active</span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#8BA4CC', margin: 0, fontWeight: 300 }}>
+                      {isFree ? 'Free public API — no credentials required.' : 'Paid source — API credentials required.'}
+                    </p>
+
+                    {/* Credentials input for paid sources */}
+                    {!isFree && (
+                      <div style={{ marginTop: '12px' }}>
+                        <label style={{ ...fieldLabel, fontSize: '12px', color: '#536180' }}>API Key / Credentials</label>
+                        <input
+                          type="password"
+                          disabled={isComingSoon}
+                          value={src.credentials ?? ''}
+                          onChange={e => setContractSources(prev => prev.map(s => s.source === src.source ? { ...s, credentials: e.target.value } : s))}
+                          placeholder={isComingSoon ? 'Available when this source goes live' : 'Enter API credentials…'}
+                          style={{ ...inputBase, resize: undefined, opacity: isComingSoon ? 0.5 : 1, cursor: isComingSoon ? 'not-allowed' : 'text' }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Contract Preferences */}
+      <section style={{ marginBottom: '40px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 500, color: '#0D1E4F', borderBottom: '0.5px solid #EEF2FF', paddingBottom: '12px', marginBottom: '8px' }}>Contract Preferences</h2>
+        <p style={{ fontSize: '13px', color: '#536180', marginBottom: '20px', fontWeight: 300 }}>Choose which types of opportunities Venniq surfaces for your firm — and whether framework agreements are included in your feed.</p>
+
+        {/* Mode A card */}
+        <div style={{ ...card, marginBottom: '10px', padding: '20px', opacity: modeAEnabled ? 1 : 0.6, transition: 'opacity 0.2s' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: '#0D1E4F', margin: '0 0 4px' }}>Mode A — Consultancy &amp; Advisory Outreach</p>
+              <p style={{ fontSize: '12px', color: '#8BA4CC', margin: 0, fontWeight: 300, lineHeight: 1.5 }}>
+                Triggered when a contract is <strong style={{ color: '#536180' }}>awarded to a competitor</strong> — alerting your team to reach out for post-award consultancy, or when an expression of interest is published and bidders will need your advisory support.
+              </p>
+            </div>
+            <button type="button" onClick={() => setModeAEnabled(v => !v)}
+              style={{ flexShrink: 0, marginTop: '2px', width: '36px', height: '20px', borderRadius: '100px', background: modeAEnabled ? '#1A6FFF' : '#D8E4FF', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+              aria-label="Toggle Mode A"
+            >
+              <span style={{ position: 'absolute', top: '2px', left: modeAEnabled ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+            </button>
+          </div>
+
+          {modeAEnabled && (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ ...fieldLabel, marginBottom: '4px' }}>
+                  Minimum value: <span style={{ color: '#1A6FFF', fontWeight: 400 }}>{fmtValue(modeAMin)}</span>
+                </label>
+                <input type="range" min={100000} max={20000000} step={100000} value={modeAMin}
+                  onChange={e => setModeAMin(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#1A6FFF', cursor: 'pointer' }} />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={modeAAwardedOnly} onChange={e => setModeAAwardedOnly(e.target.checked)}
+                  style={{ width: '14px', height: '14px', accentColor: '#1A6FFF', cursor: 'pointer' }} />
+                <span style={{ fontSize: '13px', color: '#536180', fontWeight: 300 }}>Awarded contracts only <span style={{ color: '#8BA4CC' }}>(skip expression-of-interest stage)</span></span>
+              </label>
+              {deptNames.length > 0 && (
+                <div>
+                  <label style={{ ...fieldLabel, marginBottom: '6px' }}>Which departments trigger Mode A? <span style={{ color: '#8BA4CC', fontWeight: 300 }}>(blank = all)</span></label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {deptNames.map(name => {
+                      const active = modeATypes.includes(name)
+                      return (
+                        <button key={name} type="button"
+                          onClick={() => setModeATypes(prev => active ? prev.filter(t => t !== name) : [...prev, name])}
+                          style={{ padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: active ? 'none' : '0.5px solid #D8E4FF', background: active ? '#1A6FFF' : '#ffffff', color: active ? '#ffffff' : '#536180', transition: 'all 0.15s' }}>
+                          {name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Mode B card */}
+        <div style={{ ...card, marginBottom: '10px', padding: '20px', opacity: modeBEnabled ? 1 : 0.6, transition: 'opacity 0.2s' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: '#0D1E4F', margin: '0 0 4px' }}>Mode B — Direct Delivery Bidding</p>
+              <p style={{ fontSize: '12px', color: '#8BA4CC', margin: 0, fontWeight: 300, lineHeight: 1.5 }}>
+                Triggered when a <strong style={{ color: '#536180' }}>live procurement opportunity</strong> is published that your firm can bid on and deliver directly — not as a subcontractor, not as an advisor, but as the prime contractor.
+              </p>
+            </div>
+            <button type="button" onClick={() => setModeBEnabled(v => !v)}
+              style={{ flexShrink: 0, marginTop: '2px', width: '36px', height: '20px', borderRadius: '100px', background: modeBEnabled ? '#1A6FFF' : '#D8E4FF', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+              aria-label="Toggle Mode B"
+            >
+              <span style={{ position: 'absolute', top: '2px', left: modeBEnabled ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+            </button>
+          </div>
+
+          {modeBEnabled && (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ ...fieldLabel, marginBottom: '4px' }}>
+                  Minimum value: <span style={{ color: '#1A6FFF', fontWeight: 400 }}>{fmtValue(modeBMin)}</span>
+                </label>
+                <input type="range" min={100000} max={20000000} step={100000} value={modeBMin}
+                  onChange={e => setModeBMin(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#1A6FFF', cursor: 'pointer' }} />
+              </div>
+              {deptNames.length > 0 && (
+                <div>
+                  <label style={{ ...fieldLabel, marginBottom: '6px' }}>Which departments trigger Mode B? <span style={{ color: '#8BA4CC', fontWeight: 300 }}>(blank = all)</span></label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {deptNames.map(name => {
+                      const active = modeBTypes.includes(name)
+                      return (
+                        <button key={name} type="button"
+                          onClick={() => setModeBTypes(prev => active ? prev.filter(t => t !== name) : [...prev, name])}
+                          style={{ padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: active ? 'none' : '0.5px solid #D8E4FF', background: active ? '#1A6FFF' : '#ffffff', color: active ? '#ffffff' : '#536180', transition: 'all 0.15s' }}>
+                          {name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Framework Contracts toggle */}
+        <div style={{ ...card, padding: '20px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+            <button type="button" onClick={() => setIncludeFramework(v => !v)}
+              style={{ flexShrink: 0, marginTop: '2px', width: '36px', height: '20px', borderRadius: '100px', background: includeFramework ? '#1A6FFF' : '#D8E4FF', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+              aria-label="Toggle framework contracts"
+            >
+              <span style={{ position: 'absolute', top: '2px', left: includeFramework ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+            </button>
+            <div>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: '#0D1E4F', margin: '0 0 4px' }}>Include Framework Contracts</p>
+              <p style={{ fontSize: '12px', color: '#8BA4CC', margin: 0, fontWeight: 300, lineHeight: 1.5 }}>
+                Framework contracts are long-term, pre-approved supplier agreements with a public body — inclusion means we will surface these alongside standard procurement opportunities.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Save + confirmation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div style={{ fontSize: '13px', flex: 1 }}>
+            {prefsSaved && (
+              <span style={{ color: '#4ACEA6', fontWeight: 500 }}>
+                ✓ Your preferences have been updated. Changes apply to new contracts from today — existing opportunities in your pipeline are unaffected.
+              </span>
+            )}
+            {prefsError && <span style={{ color: '#FF5C5C' }}>{prefsError}</span>}
+          </div>
+          <button type="button" onClick={handlePrefsSave} disabled={prefsSaving}
+            style={{ padding: '10px 22px', background: '#1A6FFF', color: '#ffffff', borderRadius: '6px', fontSize: '13px', fontWeight: 500, border: 'none', cursor: prefsSaving ? 'not-allowed' : 'pointer', opacity: prefsSaving ? 0.6 : 1, letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {prefsSaving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </section>
 
       {/* Sticky save bar */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#ffffff', borderTop: '0.5px solid #D8E4FF', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', zIndex: 20 }}>

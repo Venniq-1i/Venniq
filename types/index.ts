@@ -39,6 +39,7 @@ export interface FirmProfile {
   mode_a_triggers: ModeATriggers
   mode_b_triggers: ModeBTriggers
   contract_sources: ContractSource[]
+  include_framework_contracts: boolean
   updated_at: string
 }
 

@@ -121,10 +121,13 @@ async function evaluateDepartmentBatch(
  *
  * Falls back to a single firm-level pass if no departments are configured.
  */
+export type AIFilterProgress = { dept: string; batch: number; total: number }
+
 export async function aiFilterContracts(
   contracts: ContractInput[],
   profile: FirmProfile,
-  departments: Department[]
+  departments: Department[],
+  onProgress?: (p: AIFilterProgress) => void
 ): Promise<AIRelevanceResult[]> {
   if (contracts.length === 0) return []
 
@@ -165,11 +168,14 @@ For each contract return:
 
 Return ONLY a valid JSON array. No markdown fences. No explanation outside the array.`
 
+    const totalBatches = Math.ceil(contracts.length / BATCH_SIZE)
     // Paginate through all contracts in batches
     for (let i = 0; i < contracts.length; i += BATCH_SIZE) {
       const batch = contracts.slice(i, i + BATCH_SIZE)
       const batchOffset = i
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1
 
+      onProgress?.({ dept: dept.name, batch: batchNum, total: totalBatches })
       const deptResults = await evaluateDepartmentBatch(batch, systemPrompt, dept.name)
 
       for (const r of deptResults) {

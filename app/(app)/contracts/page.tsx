@@ -6,6 +6,56 @@ import { createClient } from '@/lib/supabase/client'
 import { classifyIntent } from '@/lib/relevanceProfile'
 import type { Contract, FirmProfile, IntentMode } from '@/types'
 
+type FetchProgress =
+  | { stage: 'fetching'; source: string }
+  | { stage: 'ai_filtering'; dept: string; batch: number; total: number }
+  | { stage: 'saving'; count: number }
+
+const SOURCE_DISPLAY: Record<string, string> = {
+  contracts_finder: 'Contracts Finder',
+  find_a_tender: 'Find a Tender',
+}
+
+function progressPercent(p: FetchProgress | null): number {
+  if (!p) return 0
+  if (p.stage === 'fetching') return 10
+  if (p.stage === 'ai_filtering') {
+    return 20 + Math.round((p.batch / Math.max(p.total, 1)) * 65)
+  }
+  if (p.stage === 'saving') return 90
+  return 0
+}
+
+function progressLabel(p: FetchProgress | null): string {
+  if (!p) return 'Starting…'
+  if (p.stage === 'fetching') return `Fetching from ${SOURCE_DISPLAY[p.source] ?? p.source}…`
+  if (p.stage === 'ai_filtering') return `AI filtering — ${p.dept} (batch ${p.batch}/${p.total})`
+  if (p.stage === 'saving') return `Saving ${p.count} contract${p.count === 1 ? '' : 's'}…`
+  return 'Working…'
+}
+
+function FetchProgressBar({ progress }: { progress: FetchProgress | null }) {
+  const pct = progressPercent(progress)
+  const label = progressLabel(progress)
+  return (
+    <div style={{ marginBottom: '16px', padding: '14px 16px', background: '#EFF4FF', border: '0.5px solid #C2D4F8', borderRadius: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <span style={{ fontSize: '12px', fontWeight: 500, color: '#0D1E4F' }}>{label}</span>
+        <span style={{ fontSize: '11px', color: '#8BA4CC' }}>{pct}%</span>
+      </div>
+      <div style={{ height: '4px', background: '#C2D4F8', borderRadius: '100px', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${pct}%`,
+          background: 'linear-gradient(90deg, #1A6FFF, #5B9BFF)',
+          borderRadius: '100px',
+          transition: 'width 0.4s ease',
+        }} />
+      </div>
+    </div>
+  )
+}
+
 const MODE_BADGES: Record<string, { label: string; bg: string; color: string }> = {
   A:  { label: 'Mode A — Sales', bg: '#FFFBEB', color: '#F5A623' },
   B:  { label: 'Mode B — Bid',   bg: '#EFF4FF', color: '#1A6FFF' },
@@ -218,6 +268,7 @@ export default function ContractsPage() {
   const [profile, setProfile] = useState<FirmProfile | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [fetching, setFetching] = useState(false)
+  const [fetchProgress, setFetchProgress] = useState<FetchProgress | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchResult, setFetchResult] = useState<{ rawFetched: number; filtered: number; ingested: number; error?: string } | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -245,33 +296,52 @@ export default function ContractsPage() {
   }, [])
 
   async function fetchContracts() {
-    setFetching(true); setFetchResult(null)
+    setFetching(true); setFetchResult(null); setFetchProgress(null)
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 55000) // 55s client timeout
-
       let postRes: Response
       try {
-        postRes = await fetch('/api/contracts', { method: 'POST', signal: controller.signal })
-      } catch (err: any) {
-        clearTimeout(timeout)
-        if (err?.name === 'AbortError') {
-          setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Request timed out — the server took too long. Please try again in a moment.' })
-        } else {
-          setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Network error — please check your connection and try again.' })
-        }
+        postRes = await fetch('/api/contracts', { method: 'POST' })
+      } catch {
+        setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: 'Network error — please check your connection and try again.' })
         setFetching(false)
         return
       }
-      clearTimeout(timeout)
 
-      const postData = await postRes.json()
       if (!postRes.ok) {
+        const postData = await postRes.json().catch(() => ({}))
         setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: postData.error ?? 'Something went wrong — please try again.' })
         setFetching(false)
         return
       }
-      setFetchResult({ rawFetched: postData.rawFetched ?? 0, filtered: postData.filtered ?? 0, ingested: postData.ingested ?? 0 })
+
+      const reader = postRes.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const event = JSON.parse(line)
+            if (event.stage === 'done') {
+              setFetchResult({ rawFetched: event.rawFetched ?? 0, filtered: event.filtered ?? 0, ingested: event.ingested ?? 0 })
+              setFetchProgress(null)
+            } else if (event.stage === 'error') {
+              setFetchResult({ rawFetched: 0, filtered: 0, ingested: 0, error: event.error ?? 'An error occurred.' })
+              setFetchProgress(null)
+            } else {
+              setFetchProgress(event as FetchProgress)
+            }
+          } catch {}
+        }
+      }
+
       const res = await fetch('/api/contracts')
       const data = await res.json()
       const fresh = data.contracts as Contract[]
@@ -279,6 +349,7 @@ export default function ContractsPage() {
       setSelected(new Set(fresh.filter(c => c.status === 'new').map(c => c.id)))
     } finally {
       setFetching(false)
+      setFetchProgress(null)
     }
   }
 
@@ -309,9 +380,12 @@ export default function ContractsPage() {
           <p style={{ fontSize: '14px', color: '#536180', marginTop: '8px', fontWeight: 300 }}>UK Contracts Finder — filtered by your relevance profile.</p>
         </div>
         <button onClick={fetchContracts} disabled={fetching} style={{ padding: '10px 20px', background: '#ffffff', color: '#0D2A8C', border: '1.5px solid #0D2A8C', borderRadius: '6px', fontSize: '13px', fontWeight: 400, cursor: fetching ? 'not-allowed' : 'pointer', opacity: fetching ? 0.6 : 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
-          {fetching ? 'Fetching…' : '↻ Fetch latest'}
+          {fetching ? '↻ Fetching…' : '↻ Fetch latest'}
         </button>
       </div>
+
+      {/* Live progress bar */}
+      {fetching && <FetchProgressBar progress={fetchProgress} />}
 
       {/* Fetch result banner */}
       {fetchResult && (
