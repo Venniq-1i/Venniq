@@ -218,7 +218,7 @@ export default function SettingsPage() {
   if (loading) return <div style={{ maxWidth: '768px', margin: '0 auto', padding: '40px 16px', textAlign: 'center', color: '#8BA4CC', fontSize: '14px' }}>Loading your company intelligence profile…</div>
 
   return (
-    <div style={{ maxWidth: '768px', margin: '0 auto', padding: '40px 16px 120px' }}>
+    <div style={{ maxWidth: '768px', margin: '0 auto', padding: '0 0 120px' }}>
       <div style={{ marginBottom: '40px' }}>
         <span style={eyebrow}>Settings</span>
         <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: '32px', fontWeight: 400, color: '#0D1E4F', margin: 0, lineHeight: 1.05 }}>

@@ -23,9 +23,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .insert({ owner_id: user.id, name: firmName, onboarding_complete: false })
   }
 
+  let alertsPaused = false
+  if (existingFirm) {
+    const { data: profile } = await supabase
+      .from('firm_profiles')
+      .select('alerts_paused')
+      .eq('firm_id', existingFirm.id)
+      .single()
+    alertsPaused = profile?.alerts_paused ?? false
+  }
+
+  const userEmail = user.email ?? undefined
+  const userAvatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
+
   return (
     <div style={{ minHeight: '100vh', background: '#F5F7FF' }}>
-      <AppNav />
+      <AppNav alertsPaused={alertsPaused} userEmail={userEmail} userAvatarUrl={userAvatarUrl} />
       <main>{children}</main>
     </div>
   )

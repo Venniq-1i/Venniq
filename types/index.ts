@@ -40,6 +40,8 @@ export interface FirmProfile {
   mode_b_triggers: ModeBTriggers
   contract_sources: ContractSource[]
   include_framework_contracts: boolean
+  alerts_paused: boolean
+  alert_frequency: 'realtime' | 'daily' | 'weekly'
   updated_at: string
 }
 
