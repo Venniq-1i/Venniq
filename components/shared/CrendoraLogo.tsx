@@ -1,13 +1,36 @@
+import Image from 'next/image'
+
 interface Props {
   size?: 'sm' | 'md' | 'lg'
+  /** 'dark' = for dark nav/backgrounds; 'light' = for light backgrounds (no pill wrapper) */
+  variant?: 'dark' | 'light'
 }
 
-const sizes = { sm: '15px', md: '18px', lg: '24px' }
+const heights = { sm: 18, md: 22, lg: 28 }
 
-export default function CrendoraLogo({ size = 'md' }: Props) {
+export default function CrendoraLogo({ size = 'md', variant = 'dark' }: Props) {
+  const h = heights[size]
+
   return (
-    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: sizes[size], fontWeight: 600, letterSpacing: '-0.02em' }}>
-      <span style={{ color: '#ffffff' }}>Venniq</span>
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      background: variant === 'dark' ? '#ffffff' : 'transparent',
+      borderRadius: variant === 'dark' ? '5px' : '0',
+      padding: variant === 'dark' ? '3px 8px' : '0',
+    }}>
+      <Image
+        src="/venniq-logo-hd.png"
+        alt="Venniq"
+        width={120}
+        height={h}
+        priority
+        style={{
+          height: h,
+          width: 'auto',
+          display: 'block',
+        }}
+      />
     </span>
   )
 }
