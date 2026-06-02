@@ -45,7 +45,7 @@ export async function POST(_req: NextRequest) {
         profile,
         departments,
         14,
-        false,
+        true,
         send
       )
       send({ stage: 'done', rawFetched: result.rawFetched, filtered: result.filtered, ingested: result.inserted })

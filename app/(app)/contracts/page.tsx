@@ -143,7 +143,7 @@ function ContractCard({ contract, isSelected, onToggle, mode }: {
             </div>
             {/* Right column */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-              <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: '20px', fontWeight: 400, color: '#0D1E4F' }}>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '20px', fontWeight: 600, color: '#0D1E4F' }}>
                 {fmtValue(contract.value_low, contract.value_high, contract.value)}
               </span>
               {stage && (
@@ -374,7 +374,7 @@ export default function ContractsPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px', gap: '16px' }}>
         <div>
           <span style={{ display: 'block', fontSize: '10px', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#1A6FFF', marginBottom: '8px' }}>Contracts</span>
-          <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: '32px', fontWeight: 400, color: '#0D1E4F', margin: 0, lineHeight: 1.05 }}>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '32px', fontWeight: 600, color: '#0D1E4F', margin: 0, lineHeight: 1.05 }}>
             Live <em style={{ color: '#1A6FFF', fontStyle: 'italic' }}>feed</em>
           </h1>
           <p style={{ fontSize: '14px', color: '#536180', marginTop: '8px', fontWeight: 300 }}>UK Contracts Finder — filtered by your relevance profile.</p>

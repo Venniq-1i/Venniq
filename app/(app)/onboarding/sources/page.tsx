@@ -22,6 +22,11 @@ export default function SourcesStep() {
 
   function toggleSource(i: number) {
     if (sources[i].comingSoon) return
+    const current = sources[i]
+    if (current.enabled) {
+      const activeCount = sources.filter(s => s.enabled && !s.comingSoon).length
+      if (activeCount <= 1) return
+    }
     setSources(prev => prev.map((s, idx) => idx === i ? { ...s, enabled: !s.enabled } : s))
   }
 
@@ -56,12 +61,15 @@ export default function SourcesStep() {
   return (
     <OnboardingShell step={8} title="Contract Sources" subtitle="Choose which procurement portals to monitor. Contracts Finder and Find a Tender are both enabled by default — no credentials needed.">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-        {sources.map((source, i) => (
+        {sources.map((source, i) => {
+          const isLastActive = source.enabled && !source.comingSoon && sources.filter(s => s.enabled && !s.comingSoon).length === 1
+          return (
           <div key={source.source} className={`flex items-start gap-4 p-4 rounded-xl border transition-colors ${source.enabled ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-200 bg-white'}`}>
             <div className="flex items-center pt-0.5">
               <button
                 onClick={() => toggleSource(i)}
-                disabled={!!source.comingSoon}
+                disabled={!!source.comingSoon || isLastActive}
+                title={isLastActive ? 'At least one source must be active' : undefined}
                 className={`relative w-10 h-5.5 rounded-full transition-colors ${source.enabled ? 'bg-indigo-600' : 'bg-slate-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
                 style={{ height: '22px' }}
               >
@@ -91,7 +99,13 @@ export default function SourcesStep() {
               )}
             </div>
           </div>
-        ))}
+        )})}
+
+        {sources.filter(s => s.enabled && !s.comingSoon).length === 1 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            At least one source must remain active. Enable another source before disabling this one.
+          </p>
+        )}
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
