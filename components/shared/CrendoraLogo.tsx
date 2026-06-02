@@ -16,8 +16,8 @@ export default function CrendoraLogo({ size = 'md', variant = 'dark' }: Props) {
       display: 'inline-flex',
       alignItems: 'center',
       background: variant === 'dark' ? '#ffffff' : 'transparent',
-      borderRadius: variant === 'dark' ? '5px' : '0',
-      padding: variant === 'dark' ? '3px 8px' : '0',
+      borderRadius: variant === 'dark' ? '8px' : '0',
+      padding: variant === 'dark' ? '5px 10px' : '0',
     }}>
       <Image
         src="/venniq-logo-hd.png"

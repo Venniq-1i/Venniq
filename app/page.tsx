@@ -55,7 +55,7 @@ function Nav() {
         alt="Venniq"
         width={120}
         height={36}
-        style={{ objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+        style={{ objectFit: 'contain', background: '#ffffff', borderRadius: '8px', padding: '4px 10px' }}
         priority
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -966,7 +966,7 @@ function Footer() {
         alt="Venniq"
         width={100}
         height={30}
-        style={{ objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+        style={{ objectFit: 'contain', background: '#ffffff', borderRadius: '8px', padding: '4px 8px' }}
       />
       <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
         © {new Date().getFullYear()} Venniq. All rights reserved.
