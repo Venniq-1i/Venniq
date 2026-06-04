@@ -24,8 +24,9 @@ export async function sendModeBAlert(params: {
   dept: Department
   matchedDept: MatchedDepartment
   responseToken: string
+  coAlertedDepts?: { name: string; leadName: string; leadEmail: string }[]
 }): Promise<void> {
-  const { contract, dept, matchedDept, responseToken } = params
+  const { contract, dept, matchedDept, responseToken, coAlertedDepts } = params
   const html = await render(
     React.createElement(AlertModeBEmail, {
       contract,
@@ -33,6 +34,7 @@ export async function sendModeBAlert(params: {
       leadName: dept.lead_name,
       matchedDept,
       responseToken,
+      coAlertedDepts,
     })
   )
   await getResend().emails.send({
@@ -49,8 +51,9 @@ export async function sendModeAAlert(params: {
   matchedDept: MatchedDepartment
   responseToken: string
   advisoryAnalysis?: string
+  coAlertedDepts?: { name: string; leadName: string; leadEmail: string }[]
 }): Promise<void> {
-  const { contract, dept, matchedDept, responseToken, advisoryAnalysis } = params
+  const { contract, dept, matchedDept, responseToken, advisoryAnalysis, coAlertedDepts } = params
   const html = await render(
     React.createElement(AlertModeAEmail, {
       contract,
@@ -59,12 +62,13 @@ export async function sendModeAAlert(params: {
       matchedDept,
       responseToken,
       advisoryAnalysis,
+      coAlertedDepts,
     })
   )
   await getResend().emails.send({
     from: FROM,
     to: dept.lead_email,
-    subject: `[Sales Opportunity] ${contract.title} · ${fmt(contract.value)}`,
+    subject: `[Consultancy & Advisory Sales Opportunity] ${contract.title} · ${fmt(contract.value)}`,
     html,
   })
 }

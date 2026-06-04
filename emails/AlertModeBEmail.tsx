@@ -2,15 +2,22 @@ import { Section, Text, Button, Row, Column, Link } from '@react-email/component
 import type { Contract, MatchedDepartment } from '@/types'
 import { EmailShell, CandidateCards, fmt, responseUrl, APP_URL } from './shared'
 
+interface CoAlertedDept {
+  name: string
+  leadName: string
+  leadEmail: string
+}
+
 interface Props {
   contract: Contract
   deptName: string
   leadName: string
   matchedDept: MatchedDepartment
   responseToken: string
+  coAlertedDepts?: CoAlertedDept[]
 }
 
-export default function AlertModeBEmail({ contract, deptName, leadName, matchedDept, responseToken }: Props) {
+export default function AlertModeBEmail({ contract, deptName, leadName, matchedDept, responseToken, coAlertedDepts = [] }: Props) {
   const days = contract.deadline
     ? Math.ceil((new Date(contract.deadline).getTime() - Date.now()) / 86400000)
     : null
@@ -52,8 +59,22 @@ export default function AlertModeBEmail({ contract, deptName, leadName, matchedD
 
       <Text style={{ margin: '0 0 4px', fontSize: 14, color: '#475569' }}>Hi {leadName},</Text>
       <Text style={{ margin: '0 0 16px', fontSize: 14, color: '#475569' }}>
-        Venniq has identified a contract your <strong>{deptName}</strong> department may be well-positioned to bid on directly.
+        Venniq has identified a direct delivery opportunity for your <strong>{deptName}</strong> department{coAlertedDepts.length > 0 ? <> — and the {coAlertedDepts.map(d => d.name).join(' and ')} department{coAlertedDepts.length > 1 ? 's have' : ' has'} also been identified as relevant to this opportunity.</> : '.'}
       </Text>
+
+      {coAlertedDepts.length > 0 && (
+        <Section style={{ marginBottom: 20 }}>
+          <Text style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#0f172a' }}>Your Co-Alerted Departments</Text>
+          <Text style={{ margin: '0 0 8px', fontSize: 13, color: '#475569' }}>
+            These teams are receiving the same alert. We encourage you to reach out and coordinate before responding.
+          </Text>
+          {coAlertedDepts.map(d => (
+            <Text key={d.name} style={{ margin: '0 0 4px', fontSize: 13, color: '#475569' }}>
+              {d.name} — {d.leadName} (<Link href={`mailto:${d.leadEmail}`} style={{ color: '#4f46e5' }}>{d.leadEmail}</Link>)
+            </Text>
+          ))}
+        </Section>
+      )}
 
       <Section style={{ background: '#eff6ff', borderLeft: '4px solid #4f46e5', padding: '12px 16px', borderRadius: 4, marginBottom: 20 }}>
         <Text style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1e40af' }}>{matchedDept.capability_match}</Text>
@@ -66,7 +87,7 @@ export default function AlertModeBEmail({ contract, deptName, leadName, matchedD
           <Text style={{ margin: '0 0 10px', fontSize: 13, color: '#64748b' }}>
             These colleagues have a prior relationship with {contract.issuer}:
           </Text>
-          <CandidateCards candidates={matchedDept.candidates} issuer={contract.issuer} />
+          <CandidateCards candidates={matchedDept.candidates} issuer={contract.issuer} deptName={deptName} />
         </>
       )}
 

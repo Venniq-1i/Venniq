@@ -52,6 +52,20 @@ export async function POST(req: NextRequest) {
 
       const responseToken = randomUUID()
 
+      const filteredCandidates = matchedDept.candidates.filter(c => {
+        const emp = employees.find(e => e.email === c.email)
+        return emp && emp.department_id === dept.id
+      })
+      const scopedMatchedDept = { ...matchedDept, candidates: filteredCandidates }
+
+      const coAlertedDepts = matchingRun.matched_departments
+        .filter(md => md.department !== matchedDept.department)
+        .map(md => {
+          const d = departments.find(dep => dep.name === md.department)
+          return d ? { name: d.name, leadName: d.lead_name, leadEmail: d.lead_email } : null
+        })
+        .filter((d): d is { name: string; leadName: string; leadEmail: string } => d !== null)
+
       const { data: alertRecord } = await supabase.from('alerts').insert({
         matching_run_id: runId,
         department_id: dept.id,
@@ -68,9 +82,9 @@ export async function POST(req: NextRequest) {
 
       try {
         if (mode === 'B') {
-          await sendModeBAlert({ contract, dept, matchedDept, responseToken })
+          await sendModeBAlert({ contract, dept, matchedDept: scopedMatchedDept, responseToken, coAlertedDepts })
         } else {
-          await sendModeAAlert({ contract, dept, matchedDept, responseToken })
+          await sendModeAAlert({ contract, dept, matchedDept: scopedMatchedDept, responseToken, coAlertedDepts })
         }
       } catch (err) {
         console.error('[Alerts] Email send failed:', err)
