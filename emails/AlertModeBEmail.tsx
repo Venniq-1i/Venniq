@@ -61,7 +61,7 @@ export default function AlertModeBEmail({ contract, deptName, leadName, matchedD
 
       <Text style={{ margin: '0 0 4px', fontSize: 14, color: brand.navy, fontFamily: F }}>Hi {leadName},</Text>
       <Text style={{ margin: '0 0 16px', fontSize: 14, color: brand.navy, lineHeight: '1.6', fontFamily: F }}>
-        Venniq has identified a direct delivery opportunity for your <strong>{deptName}</strong> department{coAlertedDepts.length > 0 ? <> — and the {coAlertedDepts.map(d => d.name).join(' and ')} department{coAlertedDepts.length > 1 ? 's have' : ' has'} also been identified as relevant to this opportunity.</> : '.'}
+        Venniq has identified a direct delivery opportunity for your <strong>{deptName}</strong> department{coAlertedDepts.length > 0 ? <> — and the {coAlertedDepts.map((d, i) => <span key={d.name}><strong>{d.name}</strong>{i < coAlertedDepts.length - 1 ? ' and ' : ''}</span>)} department{coAlertedDepts.length > 1 ? 's have' : ' has'} also been identified as relevant to this opportunity.</> : '.'}
       </Text>
 
       {coAlertedDepts.length > 0 && (
@@ -72,7 +72,7 @@ export default function AlertModeBEmail({ contract, deptName, leadName, matchedD
           </Text>
           {coAlertedDepts.map(d => (
             <Text key={d.name} style={{ margin: '0 0 4px', fontSize: 13, color: brand.navy, fontFamily: F }}>
-              {d.name} — {d.leadName} (<Link href={`mailto:${d.leadEmail}`} style={{ color: brand.royal }}>{d.leadEmail}</Link>)
+              <strong>{d.name}</strong> — {d.leadName} (<Link href={`mailto:${d.leadEmail}`} style={{ color: brand.royal }}>{d.leadEmail}</Link>)
             </Text>
           ))}
         </Section>
@@ -101,7 +101,7 @@ export default function AlertModeBEmail({ contract, deptName, leadName, matchedD
           <Column style={{ paddingRight: 8 }}>
             <Button
               href={responseUrl(responseToken, 'looking')}
-              style={{ background: brand.navy, color: '#fff', padding: '10px 18px', borderRadius: 7, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'block', textAlign: 'center', fontFamily: F }}
+              style={{ background: brand.royal, color: '#fff', padding: '10px 18px', borderRadius: 7, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'block', textAlign: 'center', fontFamily: F }}
             >
               Looking Into It
             </Button>
@@ -117,7 +117,7 @@ export default function AlertModeBEmail({ contract, deptName, leadName, matchedD
           <Column>
             <Button
               href={responseUrl(responseToken, 'not_relevant')}
-              style={{ background: '#6b7280', color: '#fff', padding: '10px 18px', borderRadius: 7, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'block', textAlign: 'center', fontFamily: F }}
+              style={{ background: brand.danger, color: '#fff', padding: '10px 18px', borderRadius: 7, fontSize: 13, fontWeight: 600, textDecoration: 'none', display: 'block', textAlign: 'center', fontFamily: F }}
             >
               Not Relevant
             </Button>

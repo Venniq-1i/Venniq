@@ -20,6 +20,7 @@ export const brand = {
   frost:   '#EFF4FF',
   success: '#4ACEA6',
   warning: '#F5A623',
+  danger:  '#FF5C5C',
 }
 
 const FONT_FAMILY = "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
@@ -114,7 +115,9 @@ export function EmailShell({
           <Section style={{ background: headerBg, padding: '14px 24px' }}>
             <Row>
               <Column>
-                <Img src={LOGO_URL} alt="Venniq" width="110" style={{ display: 'block' }} />
+                <Section style={{ background: '#ffffff', borderRadius: 8, padding: '6px 12px', display: 'inline-block' }}>
+                  <Img src={LOGO_URL} alt="Venniq" width="100" style={{ display: 'block' }} />
+                </Section>
               </Column>
               <Column align="right">
                 <Text style={{ margin: 0, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', fontFamily: FONT_FAMILY }}>
