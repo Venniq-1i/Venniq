@@ -40,7 +40,7 @@ function Nav() {
   }, [])
 
   return (
-    <nav style={{
+    <nav className="nav-inner" style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
       padding: '0 32px',
       height: '64px',
@@ -58,7 +58,7 @@ function Nav() {
         style={{ objectFit: 'contain', background: '#ffffff', borderRadius: '8px', padding: '4px 10px' }}
         priority
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Link href="/login" style={{
           fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.7)',
           textDecoration: 'none', padding: '8px 16px',
@@ -197,24 +197,28 @@ function ResearchSection() {
 
   const stats = [
     {
+      figure: '70%',
+      label: 'of executives identify silo mentality as the single biggest obstacle to organisational effectiveness',
+      source: 'Harvard Business Review 2025',
+      sourceUrl: 'https://hbr.org/2025/03/3-types-of-silos-that-stifle-collaboration-and-how-to-dismantle-them',
+    },
+    {
+      figure: '67%',
+      label: 'of collaboration failures inside organisations are directly caused by departmental silos',
+      source: 'Harvard Business Review 2025',
+      sourceUrl: 'https://hbr.org/2025/03/3-types-of-silos-that-stifle-collaboration-and-how-to-dismantle-them',
+    },
+    {
+      figure: '44%',
+      label: 'of professional services firms missed revenue targets — internal inefficiencies cited as the primary cause',
+      source: 'Dayshape 2025',
+      sourceUrl: 'https://www.consultancy.uk/news/42265/four-in-ten-professional-services-firms-missed-revenue-targets',
+    },
+    {
       figure: '20–30%',
-      label: 'of annual revenue lost to siloed, misaligned teams',
-      source: 'Deloitte',
-    },
-    {
-      figure: '40%+',
-      label: 'of professional services firms miss their revenue targets each year',
-      source: 'Consultancy UK',
-    },
-    {
-      figure: '350hrs',
-      label: 'lost per employee per year to internal barriers caused by organisational silos',
-      source: 'PwC',
-    },
-    {
-      figure: '86%',
-      label: 'of business leaders cite lack of collaboration as the leading cause of failure',
-      source: 'Various',
+      label: 'of annual revenue lost to internal inefficiencies every year',
+      source: 'McKinsey 2023',
+      sourceUrl: 'https://www.mckinsey.com/capabilities/people-and-organizational-performance/our-insights/the-state-of-organizations-2023',
     },
   ]
 
@@ -278,15 +282,16 @@ function ResearchSection() {
               }}>
                 {stat.label}
               </p>
-              <span style={{
+              <a href={stat.sourceUrl} target="_blank" rel="noopener noreferrer" style={{
                 fontSize: '11px', fontWeight: 500,
                 color: 'rgba(255,255,255,0.25)',
                 letterSpacing: '0.08em', textTransform: 'uppercase',
                 borderTop: '1px solid rgba(255,255,255,0.08)',
                 paddingTop: '12px', display: 'block',
+                textDecoration: 'none',
               }}>
                 {stat.source}
-              </span>
+              </a>
             </div>
           ))}
         </div>
@@ -450,14 +455,14 @@ function WhatItIsSection() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           {rows.map((row, i) => (
-            <div key={i} style={{
+            <div key={i} className="what-it-is-row" style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px',
               opacity: inView ? 1 : 0,
               transform: inView ? 'translateY(0)' : 'translateY(20px)',
               transition: `opacity 0.5s ease ${i * 100}ms, transform 0.5s ease ${i * 100}ms`,
             }}>
               {/* Not */}
-              <div style={{
+              <div className="what-it-is-cell-not" style={{
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid rgba(255,255,255,0.07)',
                 borderRadius: i === 0 ? '12px 12px 0 0' : i === rows.length - 1 ? '0 0 0 12px' : '0',
@@ -473,7 +478,7 @@ function WhatItIsSection() {
                 </p>
               </div>
               {/* Is */}
-              <div style={{
+              <div className="what-it-is-cell-is" style={{
                 background: `${royal}18`,
                 border: `1px solid ${royal}30`,
                 borderRadius: i === 0 ? '0 12px 0 0' : i === rows.length - 1 ? '0 0 12px 0' : '0',
@@ -546,7 +551,7 @@ function HowItWorksSection() {
 
         <div style={{ position: 'relative' }}>
           {/* Vertical track */}
-          <div style={{
+          <div className="how-it-works-track" style={{
             position: 'absolute',
             left: '31px',
             top: '32px',
@@ -565,7 +570,7 @@ function HowItWorksSection() {
           </div>
 
           {steps.map((step, i) => (
-            <div key={i} style={{
+            <div key={i} className="how-it-works-step" style={{
               display: 'flex',
               gap: '36px',
               marginBottom: i < steps.length - 1 ? '64px' : '0',
@@ -574,7 +579,7 @@ function HowItWorksSection() {
               transition: `opacity 0.6s ease ${300 + i * 350}ms, transform 0.6s ease ${300 + i * 350}ms`,
             }}>
               {/* Circle */}
-              <div style={{
+              <div className="how-it-works-step-circle" style={{
                 width: '64px', height: '64px', borderRadius: '50%',
                 background: inView ? royal : mist,
                 border: `3px solid ${inView ? royal : mist}`,
@@ -684,7 +689,7 @@ function DifferentiatorSection() {
         </div>
 
         {/* 4 points grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px' }}>
+        <div className="differentiator-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px' }}>
           {points.map((point, i) => (
             <div key={i} style={{
               display: 'flex', gap: '20px',
@@ -912,6 +917,7 @@ function EarlyAccessSection() {
               { value: email, setter: setEmail, placeholder: 'Work email', type: 'email' },
             ].map((field, i) => (
               <input key={i}
+                className="early-access-input"
                 type={field.type}
                 value={field.value}
                 onChange={e => field.setter(e.target.value)}
